@@ -1,10 +1,21 @@
+/**
+ *  Main script of the project backend.
+ *
+ *  It uses the SwaggerUI as documentation to display the routes.
+ */
+
+//
+//  Builder 
+//
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+//
+//  Application
+//
 
 var app = builder.Build();
 
@@ -21,6 +32,7 @@ var summaries = new[]
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 };
 
+// The exemple weatherforecast route
 app.MapGet("/weatherforecast", () =>
 {
     var forecast =  Enumerable.Range(1, 5).Select(index =>
@@ -35,6 +47,7 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast");
 
+// Adding the SwaggerUI route
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
