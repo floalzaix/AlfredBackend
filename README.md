@@ -17,6 +17,21 @@
 - Smart notifications
 - Responsive design
 
+---
+
+## Technical guide
+
+### Naming convention
+
+| Cas | Convention | Exemple |
+| --- | --- | --- |
+| Types, membres publics, fichiers, dossiers, projets, namespaces | PascalCase | `EquipeService`, `MonApp.Bll.Services` |
+| Interfaces, méthodes async, booléens | Préfixe `I` / suffixe `Async` / `Is`·`Has`·`Can` | `IEquipeService`, `ObtenirEquipeAsync()`, `IsActive` |
+| Paramètres et variables locales | camelCase | `equipeId`, `nombreEquipes` |
+| Champs privés | `_camelCase` | `_equipeRepository` |
+
+---
+
 ## Requirements
 
 - donet 10 or older
