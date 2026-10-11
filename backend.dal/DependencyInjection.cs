@@ -27,12 +27,20 @@
  *     repetitive manual object creation and wiring.
  */
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Backend.DAL;
 
 public static class DependencyInjection {
     public static IServiceCollection AddDAL(this IServiceCollection services) {
+        // Registering the db : temporary connexion string hardcoded TODO
+        // TODO : commented for now cause of unknown used tech
+        // services.AddDbContext<AppDbContext>(
+        //     options => options.UseNpgsql("")
+        // );
+
+
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // ex : services.AddScoped<IRepository, Repository>();
         // 
