@@ -32,6 +32,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Backend.DAL;
 
+//
+//  Class
+//
+
 public static class DependencyInjection {
     public static IServiceCollection AddDAL(this IServiceCollection services) {
         // Registering the db : temporary connexion string hardcoded TODO
@@ -51,6 +55,10 @@ public static class DependencyInjection {
         // The purpose here is to have the cleanest objects possible -> Every time that
         // you need a repository or any other objects then it has the fewest args to be
         // passed to it, just the logic ones, like the n_iteration or stuff like that.   
+
+        //
+        //  Repositories registry
+        //
 
         return services;
     }

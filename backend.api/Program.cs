@@ -15,6 +15,7 @@
 using Backend.API;
 using Backend.BLL;
 using Backend.DAL;
+using Backend.API.Routes;
 
 //
 //  Builder 
@@ -41,6 +42,11 @@ if (app.Environment.IsDevelopment())
 }
 app.UseHttpsRedirection();
 
+//
+//  Routes
+//
+
+app.MapExampleRoutes();
 
 // Adding the SwaggerUI route
 if (app.Environment.IsDevelopment())

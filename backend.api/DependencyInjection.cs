@@ -28,22 +28,35 @@
  */
 
 using Microsoft.Extensions.DependencyInjection;
+using Backend.API.Controllers;
 
 namespace Backend.API;
+
+//
+//  Class
+//
 
 public static class DependencyInjection {
     public static IServiceCollection AddAPI(this IServiceCollection services) {
         // services.AddScoped<Interface, Class(implementating the interface)>();
-        // ex : services.AddScoped<IController, Controller>();
+        // or
+        // services.AddScoped<Class>();
+        // ex : services.AddScoped<Controller>();
         // 
-        // Here the Controller class should implement the IController interface, and if
-        // a route or else needs the controller, then it will be automatically given to
-        // it no need to pass it.
+        // If a route or else needs the controller, then it will be automatically given to
+        // it no need to pass it. (Works for the functions parameters and constructors for
+        // instance like).
         //
         // The purpose here is to have the cleanest objects possible -> Every time that
         // you need a controller or any other objects then it has the fewest args to be
         // passed to it, just the logic ones, like the n_iteration or stuff like that.   
-        
+
+        //
+        //  Controllers registry
+        //
+
+        services.AddScoped<ExampleController>();
+
         return services;
     }
 }

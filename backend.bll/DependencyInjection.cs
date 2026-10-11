@@ -28,10 +28,17 @@
  */
 
 using Microsoft.Extensions.DependencyInjection;
+using Backend.BLL.Interfaces;
+using Backend.BLL.Services;
 
 namespace Backend.BLL;
 
+//
+//  Class
+//
+
 public static class DependencyInjection {
+
     public static IServiceCollection AddBLL(this IServiceCollection services) {
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // ex : services.AddScoped<IService, Service>();
@@ -42,7 +49,13 @@ public static class DependencyInjection {
         //
         // The purpose here is to have the cleanest objects possible -> Every time that
         // you need a service or any other objects then it has the fewest args to be
-        // passed to it, just the logic ones, like the n_iteration or stuff like that.   
+        // passed to it, just the logic ones, like the n_iteration or stuff like that.  
+
+        //
+        //  Services registry
+        //
+
+        services.AddScoped<IExampleService, ExampleService>();
 
         return services;
     }

@@ -20,7 +20,7 @@
  */
 
 //
-//    Imports
+//  Imports
 //
 
 using Microsoft.EntityFrameworkCore;
@@ -28,14 +28,14 @@ using Microsoft.EntityFrameworkCore;
 namespace Backend.DAL;
 
 //
-//    Class
+//  Class
 //
 
 public class AppDbContext(
     DbContextOptions<AppDbContext> options
 ) : DbContext(options) {
     //
-    //    Entities registry
+    //  Entities registry
     //
 
     // public DbSet<MyExampleModel> MyExampleModels => Set<MyExampleModel>();
