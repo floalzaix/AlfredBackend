@@ -1,0 +1,26 @@
+flowchart TD
+    Start([Start: choose a feature name<br/>e.g. Device]) --> S1
+
+    S1["1. Model<br/>Backend.Models/DeviceModels.cs"] --> NeedDb{Needs database?}
+
+    NeedDb -->|Yes| S2["2. Persistence<br/>AppDbContext + Repository<br/>+ DAL DI + EF migration"]
+    NeedDb -->|No| S3
+    S2 --> S3
+
+    S3["3. Service interface<br/>Backend.BLL/Interfaces/IDeviceService.cs"] --> S4
+
+    S4["4. Service implementation<br/>Backend.BLL/Services/DeviceService.cs"] --> S5
+
+    S5["5. Register service<br/>Backend.BLL/DependencyInjection.cs"] --> S6
+
+    S6["6. DTOs<br/>Backend.API/DTOs/DeviceDTOs.cs"] --> S7
+
+    S7["7. Controller<br/>Backend.API/Controllers/DeviceController.cs"] --> S8
+
+    S8["8. Register controller<br/>Backend.API/DependencyInjection.cs"] --> S9
+
+    S9["9. Routes<br/>Backend.API/Routes/DeviceRoute.cs"] --> S10
+
+    S10["10. Map routes<br/>Backend.API/Program.cs"] --> S11
+
+    S11["11. Build and test<br/>dotnet build / run"] --> Done([Feature ready])
