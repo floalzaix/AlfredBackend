@@ -41,7 +41,7 @@ Browser / frontend
 3. Service        (business rules)        Backend.BLL/Services
         │
         ▼
-4. Repository     (talk to the database)  Backend.DAL/Repositories   ← only if you save data
+4. Repository     (talk to the database)  Backend.DAL/Interfaces + Repositories   ← only if you save data
         │
         ▼
 5. Model          (shape of the data)     Backend.Models
@@ -137,15 +137,15 @@ Add relationships in `OnModelCreating` only when you need them
 
 ### 2.2 Repository interface
 
-**File to create:** `Backend.DAL/Repositories/IDeviceRepository.cs`
-(or an `Interfaces` folder if you prefer; stay consistent once you choose)
+**File to create:** `Backend.DAL/Interfaces/IDeviceRepository.cs`
 
 **Role:** list the database operations the rest of the app is allowed to use.
+Same idea as `Backend.BLL/Interfaces` for services.
 
 ```csharp
 using Backend.Models;
 
-namespace Backend.DAL.Repositories;
+namespace Backend.DAL.Interfaces;
 
 public interface IDeviceRepository {
     Task<Device?> GetByIdAsync(Guid id);
@@ -408,8 +408,10 @@ using Backend.API.Routes;
 app.MapDeviceRoutes();
 ```
 
-`AddDAL()`, `AddBLL()`, and `AddAPI()` should already be called.
-You usually only add a new `Map…` line here for a new feature.
+`AddAPI()` is already called in `Program.cs`. It chains `AddBLL()` →
+`AddDAL()` for you. You usually only add a new `Map…` line here for a
+new feature (and register the new types in each layer’s
+`DependencyInjection.cs`).
 
 ---
 
@@ -443,7 +445,7 @@ Backend.Models/
 
 Backend.DAL/                          (only if persistence)
   Database.cs                         (edit AppDbContext)
-  Repositories/IDeviceRepository.cs
+  Interfaces/IDeviceRepository.cs
   Repositories/DeviceRepository.cs
   DependencyInjection.cs              (edit)
 

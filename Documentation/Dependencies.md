@@ -10,19 +10,20 @@ flowchart TB
         Routes["Routes"]
         Controllers["Controllers"]
         DTOs["DTOs"]
-        ApiDI["DependencyInjection"]
+        ApiDI["DependencyInjection<br/>AddAPI()"]
     end
 
     subgraph BLL["Backend.BLL"]
-        Interfaces["Interfaces"]
+        ServiceInterfaces["Interfaces<br/>I*Service"]
         Services["Services"]
-        BllDI["DependencyInjection"]
+        BllDI["DependencyInjection<br/>AddBLL()"]
     end
 
     subgraph DAL["Backend.DAL"]
+        RepoInterfaces["Interfaces<br/>I*Repository"]
         Repositories["Repositories"]
         DbContext["AppDbContext"]
-        DalDI["DependencyInjection"]
+        DalDI["DependencyInjection<br/>AddDAL()"]
     end
 
     subgraph Models["Backend.Models"]
@@ -31,15 +32,16 @@ flowchart TB
 
     Program["Program.cs<br/>composition root"]
 
-    Program --> ApiDI
-    Program --> BllDI
-    Program --> DalDI
+    Program -->|"builder.Services.AddAPI()"| ApiDI
+    ApiDI -->|"services.AddBLL()"| BllDI
+    BllDI -->|"services.AddDAL()"| DalDI
     Program --> Routes
 
     Routes --> Controllers
-    Controllers --> Interfaces
-    Services --> Interfaces
-    Services --> Repositories
+    Controllers --> ServiceInterfaces
+    Services --> ServiceInterfaces
+    Services --> RepoInterfaces
+    Repositories --> RepoInterfaces
     Repositories --> DbContext
 
     Controllers --> DomainModels
@@ -49,7 +51,6 @@ flowchart TB
     DTOs -.-> Controllers
 
     API -->|"project ref"| BLL
-    API -->|"project ref<br/>(composition root)"| DAL
     API -->|"project ref"| Models
     BLL -->|"project ref"| DAL
     BLL -->|"project ref"| Models

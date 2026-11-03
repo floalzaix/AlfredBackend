@@ -29,6 +29,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Backend.API.Controllers;
+using Backend.BLL;
 
 namespace Backend.API;
 
@@ -38,6 +39,8 @@ namespace Backend.API;
 
 public static class DependencyInjection {
     public static IServiceCollection AddAPI(this IServiceCollection services) {
+        services.AddBLL();
+        
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // or
         // services.AddScoped<Class>();

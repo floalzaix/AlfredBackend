@@ -21,9 +21,9 @@ HTTP request
     ↓
 Backend.API        Routes → Controllers → DTOs
     ↓
-Backend.BLL        Interfaces → Services
+Backend.BLL        Interfaces (I*Service) → Services
     ↓
-Backend.DAL        Repositories → AppDbContext
+Backend.DAL        Interfaces (I*Repository) → Repositories → AppDbContext
     ↓
 Backend.Models     Shared domain models (properties only)
 ```
@@ -33,35 +33,44 @@ Backend.Models     Shared domain models (properties only)
 | Project | Role | May contain |
 | --- | --- | --- |
 | `Backend.API` | HTTP edge | Routes, Controllers, DTOs, API DI |
-| `Backend.BLL` | Business logic | Interfaces, Services, BLL DI |
-| `Backend.DAL` | Persistence | Repositories, `AppDbContext`, DAL DI |
+| `Backend.BLL` | Business logic | `Interfaces/`, `Services/`, BLL DI |
+| `Backend.DAL` | Persistence | `Interfaces/`, `Repositories/`, `AppDbContext`, DAL DI |
 | `Backend.Models` | Shared models | POCOs with properties only |
 
 ### Dependency rules (do not break)
 
-Allowed references:
+Allowed project references:
 
-- `API` → `BLL`, `DAL` (composition root only), `Models`
+- `API` → `BLL`, `Models`
 - `BLL` → `DAL`, `Models`
 - `DAL` → `Models`
 - `Models` → nothing in this solution
 
 Forbidden:
 
+- `API` calling `AddDAL()` or `AddBLL()` directly from `Program.cs`
 - `BLL` or `DAL` importing API types (DTOs, Controllers, Routes)
 - `Models` depending on any other project
 - Putting business logic in Routes or DTOs
 - Accessing `AppDbContext` from API or Controllers (repositories only)
 - Skipping a layer (e.g. Controller calling a Repository directly)
 
-`Program.cs` is the composition root: it may call `AddDAL()`, `AddBLL()`, `AddAPI()` and map routes. Prefer keeping business wiring inside each layer’s `DependencyInjection.cs`.
+DI registration is **chained** so each layer pulls in the layer below it:
+
+```
+Program.cs → AddAPI() → AddBLL() → AddDAL()
+```
+
+`Program.cs` only calls `AddAPI()` and maps routes. Each layer’s
+`DependencyInjection.cs` owns its own registrations and invokes the
+next layer’s `Add*()` method.
 
 ### Request flow
 
 1. **Route** (`Backend.API/Routes`) — exposes the HTTP endpoint, binds input, injects the controller
 2. **Controller** (`Backend.API/Controllers`) — maps DTO → service call, returns the result
 3. **Service** (`Backend.BLL/Services` via interface) — business rules
-4. **Repository** (`Backend.DAL/Repositories` via interface) — database access when needed
+4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) — database access when needed
 5. **Model** (`Backend.Models`) — shared shape of domain data
 
 ---
@@ -93,18 +102,19 @@ Copy and track:
 Feature: <Name>
 
 [ ] 1. Model(s) in Backend.Models
-[ ] 2. Repository interface + class in Backend.DAL (if persistence)
-[ ] 3. Register entity on AppDbContext + constraints (if persistence)
-[ ] 4. Register repository in Backend.DAL/DependencyInjection.cs
-[ ] 5. EF migration (if persistence)
-[ ] 6. Service interface in Backend.BLL/Interfaces
-[ ] 7. Service implementation in Backend.BLL/Services
-[ ] 8. Register service in Backend.BLL/DependencyInjection.cs
-[ ] 9. Request/response DTOs in Backend.API/DTOs
-[ ] 10. Controller in Backend.API/Controllers
-[ ] 11. Register controller in Backend.API/DependencyInjection.cs
-[ ] 12. Routes in Backend.API/Routes + Map* in Program.cs
-[ ] 13. Build and smoke-test the endpoints
+[ ] 2. Repository interface in Backend.DAL/Interfaces (if persistence)
+[ ] 3. Repository class in Backend.DAL/Repositories (if persistence)
+[ ] 4. Register entity on AppDbContext + constraints (if persistence)
+[ ] 5. Register repository in Backend.DAL/DependencyInjection.cs
+[ ] 6. EF migration (if persistence)
+[ ] 7. Service interface in Backend.BLL/Interfaces
+[ ] 8. Service implementation in Backend.BLL/Services
+[ ] 9. Register service in Backend.BLL/DependencyInjection.cs
+[ ] 10. Request/response DTOs in Backend.API/DTOs
+[ ] 11. Controller in Backend.API/Controllers
+[ ] 12. Register controller in Backend.API/DependencyInjection.cs
+[ ] 13. Routes in Backend.API/Routes + Map* in Program.cs
+[ ] 14. Build and smoke-test the endpoints
 ```
 
 ### Step details
@@ -114,21 +124,21 @@ Feature: <Name>
 - Properties only (no business logic, no EF attributes unless required later)
 - Shared across layers intentionally (avoid duplicating the same type per layer)
 
-#### 2–5. Persistence — `Backend.DAL` (when needed)
+#### 2–6. Persistence — `Backend.DAL` (when needed)
 
-- Interface: `I<Feature>Repository`
-- Implementation: `<Feature>Repository` under `Repositories/`
+- Interface: `I<Feature>Repository` in `Interfaces/` (same pattern as BLL)
+- Implementation: `<Feature>Repository` in `Repositories/`
 - Register `DbSet<>` and relationships in `AppDbContext` (`Database.cs`)
 - Register: `services.AddScoped<I<Feature>Repository, <Feature>Repository>();`
 - Migration commands: see `commands.md`
 
-#### 6–8. Business logic — `Backend.BLL`
+#### 7–9. Business logic — `Backend.BLL`
 
 - Interface: `I<Feature>Service` in `Interfaces/`
 - Implementation: `<Feature>Service` in `Services/`, depends on repository interfaces (not concrete types)
 - Register: `services.AddScoped<I<Feature>Service, <Feature>Service>();`
 
-#### 9–12. HTTP edge — `Backend.API`
+#### 10–13. HTTP edge — `Backend.API`
 
 **DTOs** (`DTOs/<Feature>DTOs.cs`):
 
@@ -171,22 +181,36 @@ Feature: <Name>
 
 ## Dependency injection
 
-Each layer owns its registrations:
+Each layer owns its registrations and chains the layer below:
 
-| File | Registers |
-| --- | --- |
-| `Backend.DAL/DependencyInjection.cs` | `AppDbContext`, repositories |
-| `Backend.BLL/DependencyInjection.cs` | services (`I*Service` → `*Service`) |
-| `Backend.API/DependencyInjection.cs` | controllers |
+| File | Calls next | Registers |
+| --- | --- | --- |
+| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers |
+| `Backend.BLL/DependencyInjection.cs` | `AddDAL()` | services (`I*Service` → `*Service`) |
+| `Backend.DAL/DependencyInjection.cs` | — | `AppDbContext`, repositories |
 
 Default lifetime: **Scoped**.
 
-`Program.cs` order:
+`Program.cs` only registers the API layer (the rest is chained):
 
 ```csharp
-builder.Services.AddDAL();
-builder.Services.AddBLL();
 builder.Services.AddAPI();
+```
+
+Inside the layers:
+
+```csharp
+// AddAPI
+services.AddBLL();
+services.AddScoped<ExampleController>();
+
+// AddBLL
+services.AddDAL();
+services.AddScoped<IExampleService, ExampleService>();
+
+// AddDAL
+// services.AddDbContext<AppDbContext>(...);
+// services.AddScoped<IRepository, Repository>();
 ```
 
 ---

@@ -30,6 +30,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Backend.BLL.Interfaces;
 using Backend.BLL.Services;
+using Backend.DAL;
 
 namespace Backend.BLL;
 
@@ -40,6 +41,8 @@ namespace Backend.BLL;
 public static class DependencyInjection {
 
     public static IServiceCollection AddBLL(this IServiceCollection services) {
+        services.AddDAL();
+
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // ex : services.AddScoped<IService, Service>();
         // 
