@@ -45,6 +45,7 @@ app.UseHttpsRedirection();
 //
 
 app.MapExampleRoutes();
+app.MapAuthRoutes();
 
 // Adding the SwaggerUI route
 if (app.Environment.IsDevelopment())
