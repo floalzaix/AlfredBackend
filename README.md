@@ -6,9 +6,9 @@
 
 ## Features
 
-- Device management with protocols (Matter, ZigBee)
+- Device management with protocols (Matter, ZigBee...)
 - Basic functions for actuators and sensor displays
-- 1D scene management system for LED synchronization (potential to upgrade to 2D or 3D)
+- 1 dimension scene management system for LED synchronization (potential to upgrade to 2D or 3D)
 - Visualization of rooms with devices inside
 - Authentication system with roles → user, home_manager, admin, admin_reader
 - Household (home) management system
