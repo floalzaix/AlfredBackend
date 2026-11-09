@@ -19,6 +19,44 @@ git push
 Push your local commits to the remote repository.
 
 
+## DOCKER (dev database)
+
+`Backend.DAL/Dockerfile` starts a local PostgreSQL for development.
+Do **not** use it in production (password is in the tracked file).
+
+```
+cd Backend.DAL
+docker build -t alfred-db .
+```
+Build the PostgreSQL image from the Dockerfile in this folder.
+
+```
+docker run -d --name alfred-db -p 4040:4040 alfred-db
+```
+Start the container (port `4040`). The Dockerfile `VOLUME` keeps data
+across `stop` / `start` of the same container. Recreating it resets the DB.
+
+```
+docker stop alfred-db
+docker start alfred-db
+```
+Stop / restart an existing container (data kept).
+
+```
+docker logs -f alfred-db
+```
+Follow PostgreSQL logs.
+
+| Setting | Value |
+| --- | --- |
+| Host | `localhost` |
+| Port | `4040` |
+| Database | `alfred_db` |
+| Username / Password | see `Backend.DAL/Dockerfile` |
+
+Connection string: `Backend.API/appsettings.Development.json` (`DALConfig`).
+
+
 ## DOTNET
 
 ```

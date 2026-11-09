@@ -8,6 +8,10 @@ side by side. You will mostly **copy that pattern** and rename it.
 
 Useful commands are listed in `commands.md`.
 
+If your feature needs the database, start the **dev PostgreSQL** first
+with `Backend.DAL/Dockerfile` (see the Docker section in `commands.md`
+or the README).
+
 ---
 
 ## Tiny OOP vocabulary (only what you need)
@@ -122,9 +126,15 @@ Notes for beginners:
 Skip this whole step if your feature does not touch the database yet
 (like the current `Example` feature).
 
-### 2.1 Register the model in EF
+### 2.1 Register the model in EF (required to persist it)
 
 **File to edit:** `Backend.DAL/Database.cs` (`AppDbContext`)
+
+Creating a C# model is not enough. You **must** register it on
+`AppDbContext` so Entity Framework:
+
+- maps it to a database table
+- includes it in migrations
 
 Add a `DbSet` so EF knows the table exists, for example:
 
@@ -134,6 +144,12 @@ public DbSet<Device> Devices => Set<Device>();
 
 Add relationships in `OnModelCreating` only when you need them
 (see the commented example already in that file).
+
+Connection strings live under `DALConfig` in
+`appsettings.Development.json` (dev Docker DB on port `4040`) and
+`appsettings.Production.json` (fake prod example). Do not hardcode them.
+Start the DB with `Backend.DAL/Dockerfile` before running migrations
+(see `commands.md`).
 
 ### 2.2 Repository interface
 
@@ -358,7 +374,23 @@ the controller from DI.
 
 **Role:** expose the HTTP endpoint(s).
 
-Look at: `Backend.API/Routes/ExampleRoute.cs`
+Look at: `Backend.API/Routes/ExampleRoutes.cs`
+
+**REST naming:** route paths must stay **REST**. REST
+(Representational State Transfer) means the URL names a **resource**
+(a noun, usually plural) and the HTTP method names the **action**:
+
+| Method | Path | Meaning |
+| --- | --- | --- |
+| `GET` | `/devices` | List devices |
+| `GET` | `/devices/{id}` | Get one device |
+| `POST` | `/devices` | Create a device |
+| `PUT` / `PATCH` | `/devices/{id}` | Replace / update |
+| `DELETE` | `/devices/{id}` | Delete a device |
+
+Avoid verb paths like `/getDevice` or `/createDevice`. Nested resources
+are fine when ownership is clear (`/homes/{homeId}/rooms`). The Example
+`/hello_world` path is only a demo.
 
 ```csharp
 using Backend.API.Controllers;
@@ -368,9 +400,9 @@ namespace Backend.API.Routes;
 
 public static class DeviceRoutes {
     public static void MapDeviceRoutes(this IEndpointRouteBuilder mainRouter) {
-        var deviceRouter = mainRouter.MapGroup("/device");
+        var deviceRouter = mainRouter.MapGroup("/devices");
 
-        deviceRouter.MapGet("/by_name", (
+        deviceRouter.MapGet("/", (
             DeviceController controller,
             [AsParameters] GetDeviceDTO dto
         ) => {
@@ -388,7 +420,7 @@ Important binding rule:
 
 Example URL after this step:
 
-`GET /device/by_name?name=lamp`
+`GET /devices?name=lamp`
 
 ---
 
@@ -464,14 +496,40 @@ Backend.API/
 
 ---
 
+## How to add typed configuration (`XXXConfig.cs`)
+
+When a project needs settings (connection string, feature flags, …):
+
+1. Create `<Layer>Config.cs` in that project (see `Backend.DAL/DALConfig.cs`)
+2. Add DataAnnotations (`[Required]`, …) on properties you must validate
+3. Add the JSON section in `Backend.API/appsettings.json` and override per
+   environment in `appsettings.Development.json` /
+   `appsettings.Production.json`
+4. Bind it in that project’s `DependencyInjection.cs`:
+
+```csharp
+services.AddOptions<DALConfig>()
+    .BindConfiguration("DALConfig")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
+5. Inject `IOptions<DALConfig>` (or your config type) where you need the values
+
+The JSON section name must match the string passed to `BindConfiguration`.
+
+---
+
 ## Golden rules (short)
 
 1. Copy `Example*`, then rename carefully
 2. One feature name, reused in every layer
 3. Never skip layers (Controller must not call the repository directly)
 4. Always register new services/controllers/repositories in DI
-5. Keep each file focused on its job
-6. Write code and comments in **English**
+5. Persist models by declaring them on `AppDbContext` in `Database.cs`
+6. Keep route names REST (resource nouns + HTTP verbs)
+7. Keep each file focused on its job
+8. Write code and comments in **English**
 
 If you are stuck, open the matching `Example*` file for that layer and
 mirror it line by line with your feature name.

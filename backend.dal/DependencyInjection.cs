@@ -29,6 +29,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Backend.DAL;
 
@@ -38,12 +39,17 @@ namespace Backend.DAL;
 
 public static class DependencyInjection {
     public static IServiceCollection AddDAL(this IServiceCollection services) {
-        // Registering the db : temporary connexion string hardcoded TODO
-        // TODO : commented for now cause of unknown used tech
-        // services.AddDbContext<AppDbContext>(
-        //     options => options.UseNpgsql("")
-        // );
+        // Adding the configuration file to the app
+        services.AddOptions<DALConfig>()
+            .BindConfiguration("DALConfig")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
+        // Register AppDbContext with the connection string from DALConfig
+        services.AddDbContext<AppDbContext>((sp, options) => {
+            var dalConfig = sp.GetRequiredService<IOptions<DALConfig>>().Value;
+            options.UseNpgsql(dalConfig.ConnectionString);
+        });
 
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // ex : services.AddScoped<IRepository, Repository>();
