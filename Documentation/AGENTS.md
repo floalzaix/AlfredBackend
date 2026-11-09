@@ -241,16 +241,25 @@ The section name in JSON must match `BindConfiguration("…")`
 | File | Purpose |
 | --- | --- |
 | `appsettings.json` | Default / shared fallback |
-| `appsettings.Development.json` | Local PostgreSQL (dev) |
+| `appsettings.Development.json` | Local PostgreSQL (dev Docker DB) |
 | `appsettings.Production.json` | Fake production example |
 
 Section shape:
 
 ```json
 "DALConfig": {
-  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…"
+  "ConnectionString": "Host=…;Port=4040;Database=…;Username=…;Password=…"
 }
 ```
+
+### Dev database (Docker)
+
+Use `Backend.DAL/Dockerfile` for local PostgreSQL (**dev only** —
+password is tracked in git). Build/run commands: see `commands.md`.
+
+Default settings: host `localhost`, port `4040`, database `alfred_db`
+(user/password in the Dockerfile). Keep
+`appsettings.Development.json` aligned with those values.
 
 ---
 
@@ -307,11 +316,13 @@ services.AddDbContext<AppDbContext>(...);
 
 ## Commands
 
-See `commands.md` for restore, build, run, watch, and EF migrations.
+See `commands.md` for Docker (dev DB), restore, build, run, watch,
+and EF migrations.
 
 Minimum verification after a feature:
 
 ```bash
+# start the dev database first (see commands.md)
 dotnet build
 dotnet run --project Backend.API
 ```

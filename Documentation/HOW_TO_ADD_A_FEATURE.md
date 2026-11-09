@@ -8,6 +8,10 @@ side by side. You will mostly **copy that pattern** and rename it.
 
 Useful commands are listed in `commands.md`.
 
+If your feature needs the database, start the **dev PostgreSQL** first
+with `Backend.DAL/Dockerfile` (see the Docker section in `commands.md`
+or the README).
+
 ---
 
 ## Tiny OOP vocabulary (only what you need)
@@ -142,8 +146,10 @@ Add relationships in `OnModelCreating` only when you need them
 (see the commented example already in that file).
 
 Connection strings live under `DALConfig` in
-`appsettings.Development.json` (dev) and
+`appsettings.Development.json` (dev Docker DB on port `4040`) and
 `appsettings.Production.json` (fake prod example). Do not hardcode them.
+Start the DB with `Backend.DAL/Dockerfile` before running migrations
+(see `commands.md`).
 
 ### 2.2 Repository interface
 

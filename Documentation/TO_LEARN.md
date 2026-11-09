@@ -9,6 +9,7 @@
 - Understand dependency injection and why it is useful
 - Definition of database migrations
 - Understand how database integration works in an application
+- Run the local PostgreSQL with `Backend.DAL/Dockerfile` (see `commands.md`)
 - C# annotations
 - Read example files and try implementing something yourself (without committing) to see if it works. ("Blank page syndrome" is normal—if blocked, ask the AI for help to get an overview.)
     - To check if it works, open http://localhost:PORT/swagger to see if the endpoint appears, then test it and see what it returns.

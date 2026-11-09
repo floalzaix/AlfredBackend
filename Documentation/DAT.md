@@ -113,16 +113,19 @@ Reference: `Backend.DAL/DALConfig.cs`.
 - No repositories or migrations yet
 - EF Core migrations are driven from `Backend.API` (startup) toward `Backend.DAL`
 - Connection strings live under `DALConfig` (no secrets hardcoded in code)
+- **Dev database**: `Backend.DAL/Dockerfile` (PostgreSQL, port `4040`,
+  database `alfred_db`). Commands in `commands.md` / `README.md`.
+  Dev-only credentials; do not use that image in production.
 
 | File | Connection string purpose |
 | --- | --- |
 | `appsettings.json` | Default / shared fallback |
-| `appsettings.Development.json` | Local PostgreSQL (dev) |
+| `appsettings.Development.json` | Local PostgreSQL via Docker (dev) |
 | `appsettings.Production.json` | Fake production example |
 
 ```json
 "DALConfig": {
-  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…"
+  "ConnectionString": "Host=…;Port=4040;Database=…;Username=…;Password=…"
 }
 ```
 
@@ -158,8 +161,10 @@ Reference: `Backend.DAL/DALConfig.cs`.
 
 - Tools: `dotnet restore`, `dotnet build`, `dotnet run --project Backend.API`,
   `dotnet watch`
+- Dev database: Docker image from `Backend.DAL/Dockerfile`
+  (`docker build` / `docker run` — see `commands.md`)
 - Editor: VS Code (`launch.json` and `tasks.json` provided)
-- No containerization, CI/CD, or hosting strategy defined yet
+- API/app containerization, CI/CD, and hosting strategy not defined yet
 
 ## 11. Conventions
 
@@ -193,5 +198,5 @@ Reference: `Backend.DAL/DALConfig.cs`.
 3. Core features: Home, Room, Device
 4. Matter / ZigBee protocol integration (gateway or adapters)
 5. LED scenes and notifications
-6. Tests, CI/CD, and containerization
+6. Tests, CI/CD, and API/app containerization (DB Docker already exists for dev)
 7. Bonus: voice assistant, simulators
