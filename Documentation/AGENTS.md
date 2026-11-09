@@ -6,7 +6,7 @@ Instructions for AI agents working on this backend. Follow them for every change
 
 Alfred — home automation backend (SI & Infra).
 
-- Stack: .NET 10, C#, Minimal APIs, EF Core, PostgreSQL (planned)
+- Stack: .NET 10, C#, Minimal APIs, EF Core, PostgreSQL
 - Architecture: N-tier (layered)
 - Reference feature: `Example*` across all layers
 
@@ -128,9 +128,13 @@ Feature: <Name>
 
 - Interface: `I<Feature>Repository` in `Interfaces/` (same pattern as BLL)
 - Implementation: `<Feature>Repository` in `Repositories/`
-- Register `DbSet<>` and relationships in `AppDbContext` (`Database.cs`)
+- **Register the model in `AppDbContext` (`Database.cs`)** — required for EF to create the table and keep it in sync via migrations:
+  - Add `public DbSet<YourModel> YourModels => Set<YourModel>();`
+  - Declare relationships / constraints in `OnModelCreating` when needed
+  - Without this step the model exists in code but is **not** persisted
 - Register: `services.AddScoped<I<Feature>Repository, <Feature>Repository>();`
 - Migration commands: see `commands.md`
+- Connection string comes from `DALConfig` in `appsettings*.json` (never hardcode secrets)
 
 #### 7–9. Business logic — `Backend.BLL`
 
@@ -159,9 +163,26 @@ Feature: <Name>
 **Routes** (`Routes/<Feature>Route.cs`):
 
 - Static class with `Map<Feature>Routes(this IEndpointRouteBuilder …)`
-- Use `MapGroup("/<feature>")`
+- Use `MapGroup("/<feature>")` with a **REST** resource name (noun, usually plural)
 - Inject the controller from DI; keep handlers thin
 - Call `app.Map<Feature>Routes();` from `Program.cs`
+
+**REST naming (required for real features):**
+
+REST (Representational State Transfer) means the URL names a **resource**
+(a noun), and the HTTP method names the **action**. Prefer:
+
+| Method | Path | Meaning |
+| --- | --- | --- |
+| `GET` | `/devices` | List devices |
+| `GET` | `/devices/{id}` | Get one device |
+| `POST` | `/devices` | Create a device |
+| `PUT` / `PATCH` | `/devices/{id}` | Replace / partially update |
+| `DELETE` | `/devices/{id}` | Delete a device |
+
+Avoid verb paths like `/getDevices` or `/createDevice`. Nested resources are
+fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
+(`/example/hello_world`) is a demo only.
 
 **Binding rules (Minimal APIs):**
 
@@ -174,8 +195,62 @@ Feature: <Name>
 - Do not put service or repository logic inside route lambdas
 - Do not register concrete services where an interface already exists (`IExampleService` pattern)
 - Do not add a new project or flatten layers without an explicit architectural decision
-- Do not hardcode secrets; connection strings belong in configuration (see DAL DI TODOs)
+- Do not hardcode secrets; connection strings belong in `appsettings*.json` / secrets
 - Do not leave a new type unregistered in its layer’s `DependencyInjection.cs`
+- Do not skip registering a persisted model on `AppDbContext` in `Database.cs`
+
+---
+
+## Typed configuration (`XXXConfig.cs`)
+
+Each project that needs settings should own a typed config class.
+
+### Steps
+
+1. **Create** `<Layer>Config.cs` in that project (example: `Backend.DAL/DALConfig.cs`)
+2. **Annotate** properties with DataAnnotations (`[Required]`, …) so bad/missing
+   values fail fast at startup
+3. **Add** the matching JSON section in `Backend.API/appsettings.json` and the
+   environment overlays:
+   - `appsettings.Development.json` → local / dev values
+   - `appsettings.Production.json` → production values (fake placeholders in
+     the repo; real secrets stay out of git)
+4. **Bind + validate** in that project’s `DependencyInjection.cs`:
+
+```csharp
+services.AddOptions<DALConfig>()
+    .BindConfiguration("DALConfig")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
+5. **Consume** via DI with `IOptions<T>` (or `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` when needed):
+
+```csharp
+public class SomeService(IOptions<DALConfig> dalConfig) {
+    private readonly string _connectionString =
+        dalConfig.Value.ConnectionString!;
+}
+```
+
+The section name in JSON must match `BindConfiguration("…")`
+(e.g. `"DALConfig"` → class `DALConfig`).
+
+### Current connection strings
+
+| File | Purpose |
+| --- | --- |
+| `appsettings.json` | Default / shared fallback |
+| `appsettings.Development.json` | Local PostgreSQL (dev) |
+| `appsettings.Production.json` | Fake production example |
+
+Section shape:
+
+```json
+"DALConfig": {
+  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…"
+}
+```
 
 ---
 
@@ -209,7 +284,11 @@ services.AddDAL();
 services.AddScoped<IExampleService, ExampleService>();
 
 // AddDAL
-// services.AddDbContext<AppDbContext>(...);
+services.AddOptions<DALConfig>()
+    .BindConfiguration("DALConfig")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+services.AddDbContext<AppDbContext>(...);
 // services.AddScoped<IRepository, Repository>();
 ```
 

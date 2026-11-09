@@ -1,36 +1,39 @@
 # DAT – Alfred Backend
 
-## 1. Contexte et objectifs
+## 1. Context and goals
 
-Alfred est un gestionnaire de maison connectée (projet SI & Infra). Il vise à rendre les écosystèmes domotiques plus simples à utiliser et plus personnalisables, en centralisant la gestion des appareils, des pièces et des foyers derrière une API unique.
+Alfred is a connected-home manager (SI & Infra project). It aims to make
+home-automation ecosystems easier to use and more customizable by
+centralizing devices, rooms, and households behind a single API.
 
-Ce backend expose l'API consommée par le(s) client(s) (web responsive).
+This backend exposes the API consumed by the client(s) (responsive web).
 
-## 2. Périmètre fonctionnel cible
+## 2. Target functional scope
 
-- Gestion des appareils via protocoles Matter et ZigBee
-- Commande des actionneurs et affichage des capteurs
-- Scènes 1D pour la synchronisation de LED (évolutif en 2D/3D)
-- Visualisation des pièces et des appareils qu'elles contiennent
-- Authentification et rôles : `user`, `home_manager`, `admin`, `admin_reader`
-- Gestion des foyers (homes)
-- Notifications intelligentes
-- Bonus : assistant vocal, simulateurs d'appareils
+- Device management via Matter and ZigBee protocols
+- Actuator control and sensor display
+- 1D scenes for LED synchronization (extensible to 2D/3D)
+- Visualization of rooms and the devices they contain
+- Authentication and roles: `user`, `home_manager`, `admin`, `admin_reader`
+- Household (home) management
+- Smart notifications
+- Bonus: voice assistant, device simulators
 
-**Entités métier pressenties** (à confirmer) : User, Home, Room, Device, Scene.
+**Expected domain entities** (to confirm): User, Home, Room, Device, Scene.
 
-## 3. Principes d'architecture
+## 3. Architecture principles
 
-- Architecture **N-tiers** en 4 projets, avec dépendances strictement descendantes
-- Modèles de domaine partagés entre couches (pas de duplication par couche)
-- Dépendances par **interfaces**, injectées (testabilité)
-- Chaque couche déclare ses propres enregistrements DI
-- Routes fines, logique métier uniquement dans la BLL
+- **N-tier** architecture in 4 projects, with strictly downward dependencies
+- Shared domain models across layers (no per-layer duplication)
+- Dependencies through **interfaces**, injected (testability)
+- Each layer declares its own DI registrations
+- Thin routes; business logic only in the BLL
+- **REST** resource naming for feature routes
 
-## 4. Architecture applicative
+## 4. Application architecture
 
 ```
-Requête HTTP
+HTTP request
    ↓
 Backend.API     Routes → Controllers → DTOs
    ↓
@@ -38,107 +41,157 @@ Backend.BLL     Interfaces → Services
    ↓
 Backend.DAL     Repositories → AppDbContext
    ↓
-Backend.Models  Modèles de domaine (propriétés seules)
+Backend.Models  Domain models (properties only)
 ```
 
-| Projet | Rôle | Contenu |
+| Project | Role | Contents |
 | --- | --- | --- |
-| Backend.API | Point d'entrée HTTP | Routes, Controllers, DTOs, DI API |
-| Backend.BLL | Logique métier | Interfaces, Services, DI BLL |
-| Backend.DAL | Persistance | Repositories, `AppDbContext`, DI DAL |
-| Backend.Models | Modèles partagés | POCOs sans logique |
+| Backend.API | HTTP entry point | Routes, Controllers, DTOs, API DI |
+| Backend.BLL | Business logic | Interfaces, Services, BLL DI |
+| Backend.DAL | Persistence | Repositories, `AppDbContext`, `DALConfig`, DAL DI |
+| Backend.Models | Shared models | POCOs without logic |
 
-**Règles de dépendance**
+**Dependency rules**
 
-- API → BLL, Models ; API → DAL uniquement pour la composition (`Program.cs`)
+- API → BLL, Models
 - BLL → DAL, Models
 - DAL → Models
-- Models → aucune dépendance
-- Interdit : DTO/Controller importés par BLL ou DAL, `AppDbContext` accessible depuis l'API, saut de couche
+- Models → no solution dependencies
+- Forbidden: DTO/Controller imported by BLL or DAL, `AppDbContext` from API,
+  skipping a layer
 
-**Flux d'une requête** : Route (binding) → Controller (DTO → appel service) → Service (règles métier) → Repository (accès BD) → Modèle.
+DI is **chained**: `Program.cs` → `AddAPI()` → `AddBLL()` → `AddDAL()`.
 
-## 5. Stack technique
+**Request flow**: Route (binding) → Controller (DTO → service call) →
+Service (business rules) → Repository (DB access) → Model.
 
-| Domaine | Choix | Statut |
+## 5. Technical stack
+
+| Area | Choice | Status |
 | --- | --- | --- |
-| Runtime / langage | .NET 10, C# 14 | En place |
-| API | ASP.NET Core Minimal APIs | En place |
-| Documentation API | Swagger UI (Swashbuckle 10.2.3) + OpenAPI | En place (dev) |
-| ORM | Entity Framework Core 10 | Configuré, non utilisé |
-| Base de données | PostgreSQL (Npgsql 10.0.0) | Prévu, pas de connexion configurée |
-| Validation | DataAnnotations sur les DTOs | Partiel (voir §9) |
-| Injection de dépendances | Microsoft.Extensions.DependencyInjection | En place |
+| Runtime / language | .NET 10, C# 14 | In place |
+| API | ASP.NET Core Minimal APIs | In place |
+| API docs | Swagger UI (Swashbuckle) + OpenAPI | In place (dev) |
+| ORM | Entity Framework Core 10 | Configured |
+| Database | PostgreSQL (Npgsql 10.0.0) | Connection strings in appsettings |
+| Validation | DataAnnotations on DTOs and config | Partial for DTOs (see §9) |
+| Dependency injection | Microsoft.Extensions.DependencyInjection | In place |
 
-## 6. Injection de dépendances
+## 6. Dependency injection and typed configuration
 
-`Program.cs` est la racine de composition et appelle, dans cet ordre, `AddDAL()`, `AddBLL()`, `AddAPI()`. Durée de vie par défaut : **Scoped**.
+`Program.cs` only calls `AddAPI()`. Default lifetime: **Scoped**.
 
-| Fichier | Enregistre |
+| File | Registers |
 | --- | --- |
-| `Backend.DAL/DependencyInjection.cs` | `AppDbContext`, repositories |
+| `Backend.DAL/DependencyInjection.cs` | `DALConfig`, `AppDbContext`, repositories |
 | `Backend.BLL/DependencyInjection.cs` | Services (`I*Service` → `*Service`) |
 | `Backend.API/DependencyInjection.cs` | Controllers |
 
-## 7. Données
+### Adding configuration for a project
 
-- `AppDbContext` existe mais ne déclare encore aucune entité ni relation
-- Aucun repository ni migration à ce jour
-- Migrations EF Core pilotées depuis `Backend.API` (projet de démarrage) vers `Backend.DAL`
-- Chaîne de connexion à externaliser dans la configuration (aucun secret en dur)
+1. Create `XXXConfig.cs` in the project with DataAnnotations (`[Required]`, …)
+2. Add the matching JSON section in `appsettings*.json`
+3. Bind and validate in that project's `DependencyInjection.cs`:
 
-## 8. Interface API
+```csharp
+services.AddOptions<DALConfig>()
+    .BindConfiguration("DALConfig")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
 
-- Chaque feature expose un groupe de routes (`MapGroup("/<feature>")`) sous forme de méthode d'extension `Map<Feature>Routes()`
-- Les DTOs de requête sont dédiés et `sealed` ; les DTOs `GET` utilisent `[AsParameters]`
-- Feature de référence : `Example`
+4. Inject `IOptions<XXXConfig>` where values are needed
 
-| Méthode | Route | Description |
-| --- | --- | --- |
-| GET | `/example/hello_world?name=` | Retourne un `ExempleUser` (Id + Name) |
+Reference: `Backend.DAL/DALConfig.cs`.
 
-- URLs locales : `http://localhost:5230`, `https://localhost:7247`
-- Swagger UI disponible uniquement en environnement Development
+## 7. Data and database
 
-## 9. Sécurité
+- `AppDbContext` (`Backend.DAL/Database.cs`) is the entity registry
+- To **persist** a model: create it in `Backend.Models`, then declare
+  `DbSet<>` (and optional constraints in `OnModelCreating`) in `Database.cs`
+- Without that registration, EF will not create/update a table for the model
+- No repositories or migrations yet
+- EF Core migrations are driven from `Backend.API` (startup) toward `Backend.DAL`
+- Connection strings live under `DALConfig` (no secrets hardcoded in code)
 
-| Sujet | État |
+| File | Connection string purpose |
 | --- | --- |
-| Authentification / autorisation par rôles | Prévu, non implémenté |
-| HTTPS | Redirection activée |
-| Secrets | Hors dépôt (à respecter pour la chaîne de connexion) |
-| `AllowedHosts` | `*` (à restreindre en production) |
-| Validation des entrées | DataAnnotations présents sur les DTOs ; `AddValidation()` non appelé dans `Program.cs` |
+| `appsettings.json` | Default / shared fallback |
+| `appsettings.Development.json` | Local PostgreSQL (dev) |
+| `appsettings.Production.json` | Fake production example |
 
-## 10. Build, exécution et déploiement
+```json
+"DALConfig": {
+  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…"
+}
+```
 
-- Outils : `dotnet restore`, `dotnet build`, `dotnet run --project Backend.API`, `dotnet watch`
-- Éditeur : VS Code (`launch.json` et `tasks.json` fournis)
-- Pas de conteneurisation, de CI/CD ni de stratégie d'hébergement définies à ce jour
+## 8. API interface
+
+- Each feature exposes a route group (`MapGroup("/<feature>")`) as an
+  extension method `Map<Feature>Routes()`
+- Feature routes must use **REST** names: resource nouns (usually plural)
+  + HTTP methods for actions (`GET /devices`, `POST /devices`, …)
+  Avoid verb paths (`/getDevices`). Nested resources are fine when ownership
+  is clear (`/homes/{id}/rooms`)
+- Request DTOs are dedicated and `sealed`; GET DTOs use `[AsParameters]`
+- Reference feature: `Example` (demo path `/hello_world` is not REST)
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/example/hello_world?name=` | Returns an `ExempleUser` (Id + Name) |
+
+- Local URLs: `http://localhost:5230`, `https://localhost:7247`
+- Swagger UI available only in the Development environment
+
+## 9. Security
+
+| Topic | State |
+| --- | --- |
+| Authentication / role authorization | Planned, not implemented |
+| HTTPS | Redirection enabled |
+| Secrets | Keep real passwords out of the repo; use secrets / env vars in real prod |
+| `AllowedHosts` | `*` (restrict in production) |
+| Input validation | DataAnnotations on DTOs; `AddValidation()` not yet called in `Program.cs` |
+
+## 10. Build, run, and deploy
+
+- Tools: `dotnet restore`, `dotnet build`, `dotnet run --project Backend.API`,
+  `dotnet watch`
+- Editor: VS Code (`launch.json` and `tasks.json` provided)
+- No containerization, CI/CD, or hosting strategy defined yet
 
 ## 11. Conventions
 
-- PascalCase (types, fichiers, namespaces), camelCase (variables), `_camelCase` (champs privés)
-- Préfixe `I` pour les interfaces, suffixe `Async` pour les méthodes asynchrones, `Is`/`Has`/`Can` pour les booléens
-- Constructeurs primaires privilégiés ; contenu du projet (code, docs, messages) en anglais
-- Ajout d'une feature : décliner le gabarit `Example*` couche par couche (checklist dans `AGENTS.md`)
+- PascalCase (types, files, namespaces), camelCase (variables),
+  `_camelCase` (private fields)
+- `I` prefix for interfaces, `Async` suffix for async methods,
+  `Is`/`Has`/`Can` for booleans
+- Primary constructors preferred; project content (code, docs, messages)
+  in English
+- Adding a feature: follow the `Example*` template layer by layer
+  (checklist in `AGENTS.md` and `HOW_TO_ADD_A_FEATURE.md`)
 
-## 12. Points d'attention
+## 12. Attention points
 
-1. **Validation inactive** : ajouter `builder.Services.AddValidation()` pour que les DataAnnotations soient appliquées.
-2. **Casse des chemins** : les dossiers sont en minuscules (`backend.api`) alors que `backend.slnx` et les références de projet utilisent `Backend.API`. Cela fonctionne sous Windows/macOS mais échouera sous Linux (CI, conteneur).
-3. **Persistance** : aucune entité, repository ni connexion PostgreSQL ; la couche DAL est à construire.
-4. **Controllers** : classes simples injectées dans les routes (pas des contrôleurs MVC) ; choix à assumer et documenter.
-5. **Nommage** : `ExempleUser` (typo) à aligner sur `Example`.
-6. **Swagger et OpenAPI** : `MapOpenApi()` et Swashbuckle sont tous deux activés ; n'en conserver qu'un si possible.
-7. **Pas de tests** : aucun projet de tests dans la solution.
+1. **Validation inactive**: add `builder.Services.AddValidation()` so
+   DataAnnotations are enforced on Minimal APIs.
+2. **Path casing**: folders may be lowercase while `Backend.slnx` and project
+   references use `Backend.API`. Fine on Windows/macOS; fails on Linux CI.
+3. **Persistence**: no entities, repositories, or migrations yet; register
+   models in `Database.cs` when adding them.
+4. **Controllers**: plain classes injected into routes (not MVC controllers).
+5. **Naming**: `ExempleUser` (typo) should align on `Example`.
+6. **Swagger and OpenAPI**: both `MapOpenApi()` and Swashbuckle are enabled;
+   keep one if possible.
+7. **No tests**: no test project in the solution yet.
 
-## 13. Feuille de route technique
+## 13. Technical roadmap
 
-1. Persistance : entités, repositories, connexion PostgreSQL, première migration
-2. Authentification et rôles
-3. Features cœur : Home, Room, Device
-4. Intégration protocoles Matter / ZigBee (passerelle ou adaptateurs)
-5. Scènes LED et notifications
-6. Tests, CI/CD et conteneurisation
-7. Bonus : assistant vocal, simulateurs
+1. Persistence: entities, repositories, first migration
+2. Authentication and roles
+3. Core features: Home, Room, Device
+4. Matter / ZigBee protocol integration (gateway or adapters)
+5. LED scenes and notifications
+6. Tests, CI/CD, and containerization
+7. Bonus: voice assistant, simulators
