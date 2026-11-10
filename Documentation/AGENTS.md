@@ -7,10 +7,44 @@ Instructions for AI agents working on this backend. Follow them for every change
 Alfred — home automation backend (SI & Infra).
 
 - Stack: .NET 10, C#, Minimal APIs, EF Core, PostgreSQL
+- Auth: OAuth2 Bearer JWT (local validation, no introspect server)
 - Architecture: N-tier (layered)
 - Reference feature: `Example*` across all layers
 
 All project content (code, comments, docs, commit messages, user-facing strings) must be **English only**.
+
+---
+
+## Authentication (OAuth2 Bearer JWT)
+
+Auth is **OAuth2 Bearer JWT**. There is **no external verification /
+introspection server**. The API issues the JWT on login and validates
+it locally on each protected request.
+
+**Client flow**
+
+1. `POST /auth/register` — create an account
+2. `POST /auth/login` — receive `{ access_token, token_type: "Bearer" }`
+3. Send on protected routes:
+   `Authorization: Bearer <access_token>`
+
+The token expires after `JwtConfig.ExpirationTime` minutes
+(default `60`). After expiry, the client must log in again.
+
+**Protecting routes**
+
+```csharp
+.RequireAuthorization("User")   // roles User or Admin
+.RequireAuthorization("Admin")  // role Admin only
+```
+
+Public auth routes stay without `.RequireAuthorization(...)`.
+JWT middleware is already wired in `Program.cs`
+(`UseAuthentication` / `UseAuthorization`). Do not reimplement
+token parsing in controllers or services.
+
+**Config** — `JwtConfig` in `appsettings*.json`; signing `Key` from
+user-secrets / env (never commit it). Details: `DAT.md` §9.
 
 ---
 
@@ -114,7 +148,8 @@ Feature: <Name>
 [ ] 11. Controller in Backend.API/Controllers
 [ ] 12. Register controller in Backend.API/DependencyInjection.cs
 [ ] 13. Routes in Backend.API/Routes + Map* in Program.cs
-[ ] 14. Build and smoke-test the endpoints
+[ ] 14. RequireAuthorization on private routes (User / Admin)
+[ ] 15. Build and smoke-test the endpoints (Bearer token in Swagger)
 ```
 
 ### Step details
@@ -166,6 +201,8 @@ Feature: <Name>
 - Use `MapGroup("/<feature>")` with a **REST** resource name (noun, usually plural)
 - Inject the controller from DI; keep handlers thin
 - Call `app.Map<Feature>Routes();` from `Program.cs`
+- Protect private endpoints with `.RequireAuthorization("User")` or
+  `"Admin"` (OAuth2 Bearer JWT — see Authentication section above)
 
 **REST naming (required for real features):**
 
@@ -195,9 +232,13 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
 - Do not put service or repository logic inside route lambdas
 - Do not register concrete services where an interface already exists (`IExampleService` pattern)
 - Do not add a new project or flatten layers without an explicit architectural decision
-- Do not hardcode secrets; connection strings belong in `appsettings*.json` / secrets
+- Do not hardcode secrets; connection strings and JWT `Key` belong in
+  `appsettings*.json` / user-secrets / env
 - Do not leave a new type unregistered in its layer’s `DependencyInjection.cs`
 - Do not skip registering a persisted model on `AppDbContext` in `Database.cs`
+- Do not leave private routes open; add `.RequireAuthorization(...)`
+- Do not add an external JWT introspection / verification server; validation
+  stays local in the API
 
 ---
 
@@ -251,6 +292,19 @@ Section shape:
   "ConnectionString": "Host=…;Port=4040;Database=…;Username=…;Password=…"
 }
 ```
+
+### JWT settings (`JwtConfig`)
+
+```json
+"JwtConfig": {
+  "Issuer": "alfred_backend",
+  "Audience": "alfred_backend",
+  "ExpirationTime": 60
+}
+```
+
+`Key` (Base64 signing key) must come from user-secrets or environment
+variables — not from tracked appsettings. See `commands.md`.
 
 ### Dev database (Docker)
 

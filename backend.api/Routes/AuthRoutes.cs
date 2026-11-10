@@ -31,11 +31,19 @@ public static class AuthRoutes {
         //  Routes
         //
 
-        authRouter.MapPost("/register", (
+        authRouter.MapPost("/register", async(
             AuthController authController,
             RegisterRequestDTO registerRequestDTO
         ) => {
-            
+            await authController.Register(registerRequestDTO);
+            return Results.Ok();
+        });
+
+        authRouter.MapPost("/login", async(
+            AuthController authController,
+            LoginRequestDTO loginRequestDTO
+        ) => {
+            return await authController.Login(loginRequestDTO);
         });
     }
 }

@@ -57,6 +57,21 @@ Follow PostgreSQL logs.
 Connection string: `Backend.API/appsettings.Development.json` (`DALConfig`).
 
 
+## JWT (user-secrets)
+
+Auth is OAuth2 Bearer JWT. The signing key is **not** in tracked
+appsettings — store it in user-secrets (or an env var) for local dev.
+
+```
+cd Backend.API
+dotnet user-secrets set "JwtConfig:Key" "<base64-signing-key>"
+```
+Set the JWT signing key used by token generation and local validation.
+There is no external verification server: put
+`Authorization: Bearer <access_token>` on protected requests.
+Token lifetime: `JwtConfig.ExpirationTime` minutes (see appsettings).
+
+
 ## DOTNET
 
 ```

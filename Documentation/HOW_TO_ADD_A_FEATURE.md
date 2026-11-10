@@ -84,9 +84,9 @@ Replace `Device` with your own name in every file.
 [ ] Step 6  — DTOs
 [ ] Step 7  — Controller
 [ ] Step 8  — Register the controller (API DI)
-[ ] Step 9  — Routes
+[ ] Step 9  — Routes (+ RequireAuthorization when private)
 [ ] Step 10 — Map the routes in Program.cs
-[ ] Step 11 — Build and test
+[ ] Step 11 — Build and test (Bearer JWT in Swagger if protected)
 ```
 
 Work **from the bottom of the stack upward** (model → … → route).
@@ -407,10 +407,17 @@ public static class DeviceRoutes {
             [AsParameters] GetDeviceDTO dto
         ) => {
             return controller.GetDevice(dto);
-        });
+        }).RequireAuthorization("User");
     }
 }
 ```
+
+**Auth (OAuth2 Bearer JWT):** protected routes need
+`.RequireAuthorization("User")` or `"Admin"`. The client sends
+`Authorization: Bearer <access_token>` (token from `POST /auth/login`).
+There is **no external verification server** — the API validates the
+JWT locally. Token lifetime: `JwtConfig.ExpirationTime` minutes.
+See `DAT.md` §9 / `AGENTS.md` (Authentication).
 
 Important binding rule:
 
@@ -456,6 +463,10 @@ dotnet run --project Backend.API
 
 Then open Swagger (development) and try your new route.
 
+If the route is protected: call `POST /auth/login`, copy `access_token`,
+authorize in Swagger with the `bearer` scheme (paste the JWT **without**
+the `Bearer` prefix), then call your route.
+
 If something fails, check these common mistakes first:
 
 | Symptom | Likely cause |
@@ -464,6 +475,8 @@ If something fails, check these common mistakes first:
 | `Body was inferred but the method does not allow…` | Missing `[AsParameters]` on a GET DTO |
 | Project / namespace errors | Wrong folder or forgotten `using` |
 | Validation never rejects bad input | `AddValidation()` not registered in `Program.cs` |
+| `401 Unauthorized` | Missing / expired Bearer token, or route not authorized |
+| `403 Forbidden` | Valid token but wrong role for the policy |
 
 ---
 
@@ -528,8 +541,9 @@ The JSON section name must match the string passed to `BindConfiguration`.
 4. Always register new services/controllers/repositories in DI
 5. Persist models by declaring them on `AppDbContext` in `Database.cs`
 6. Keep route names REST (resource nouns + HTTP verbs)
-7. Keep each file focused on its job
-8. Write code and comments in **English**
+7. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
+8. Keep each file focused on its job
+9. Write code and comments in **English**
 
 If you are stuck, open the matching `Example*` file for that layer and
 mirror it line by line with your feature name.

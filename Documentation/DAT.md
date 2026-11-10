@@ -75,6 +75,7 @@ Service (business rules) → Repository (DB access) → Model.
 | ORM | Entity Framework Core 10 | Configured |
 | Database | PostgreSQL (Npgsql 10.0.0) | Connection strings in appsettings |
 | Validation | DataAnnotations on DTOs and config | Partial for DTOs (see §9) |
+| Auth | OAuth2 Bearer JWT (local validation, no introspect server) | In place |
 | Dependency injection | Microsoft.Extensions.DependencyInjection | In place |
 
 ## 6. Dependency injection and typed configuration
@@ -140,20 +141,64 @@ Reference: `Backend.DAL/DALConfig.cs`.
 - Request DTOs are dedicated and `sealed`; GET DTOs use `[AsParameters]`
 - Reference feature: `Example` (demo path `/hello_world` is not REST)
 
-| Method | Route | Description |
-| --- | --- | --- |
-| GET | `/example/hello_world?name=` | Returns an `ExempleUser` (Id + Name) |
+| Method | Route | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/auth/register` | Public | Create a user (username, email, password) |
+| POST | `/auth/login` | Public | Validate credentials; return a Bearer JWT |
+| GET | `/example/hello_world?name=` | `User` policy | Returns an `ExempleUser` (Id + Name) |
 
 - Local URLs: `http://localhost:5230`, `https://localhost:7247`
 - Swagger UI available only in the Development environment
 
 ## 9. Security
 
+### Authentication (OAuth2 Bearer JWT)
+
+Auth is **OAuth2 Bearer JWT**. There is **no external token
+verification / introspection server**. The API issues the JWT on login
+and validates it locally on each protected request.
+
+**Flow**
+
+1. `POST /auth/register` — create an account
+2. `POST /auth/login` — get `{ access_token, token_type: "Bearer" }`
+3. Call protected routes with header:
+   `Authorization: Bearer <access_token>`
+4. ASP.NET Core JWT Bearer middleware validates signature, issuer,
+   audience, and expiration locally (no remote auth server)
+
+**Token**
+
+- Format: JWT (HMAC-SHA256)
+- Claims: `sub` (user id), `name`, `role`
+- Lifetime: `JwtConfig.ExpirationTime` minutes (default `60`)
+- After expiry, the client must log in again to get a new token
+
+**Protecting a route**
+
+```csharp
+.RequireAuthorization("User")   // roles User or Admin
+.RequireAuthorization("Admin")  // role Admin only
+```
+
+**Configuration** (`JwtConfig` in `appsettings*.json` + user-secrets /
+env for `Key`):
+
+| Setting | Purpose |
+| --- | --- |
+| `Issuer` | Token issuer (`alfred_backend`) |
+| `Audience` | Token audience (`alfred_backend`) |
+| `Key` | Base64 signing key (secrets / env — not in repo) |
+| `ExpirationTime` | Validity in minutes |
+
+Swagger (dev): use the `bearer` security scheme and paste the JWT
+(without the `Bearer` prefix).
+
 | Topic | State |
 | --- | --- |
-| Authentication / role authorization | Planned, not implemented |
+| Authentication / role authorization | Implemented (JWT Bearer + `User` / `Admin` policies) |
 | HTTPS | Redirection enabled |
-| Secrets | Keep real passwords out of the repo; use secrets / env vars in real prod |
+| Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |
 | Input validation | DataAnnotations on DTOs; `AddValidation()` not yet called in `Program.cs` |
 
@@ -194,7 +239,8 @@ Reference: `Backend.DAL/DALConfig.cs`.
 ## 13. Technical roadmap
 
 1. Persistence: entities, repositories, first migration
-2. Authentication and roles
+2. Extend roles beyond current `User` / `Admin` policies
+   (`home_manager`, `admin_reader`, …)
 3. Core features: Home, Room, Device
 4. Matter / ZigBee protocol integration (gateway or adapters)
 5. LED scenes and notifications

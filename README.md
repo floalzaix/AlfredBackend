@@ -10,7 +10,8 @@
 - Basic functions for actuators and sensor displays
 - 1 dimension scene management system for LED synchronization (potential to upgrade to 2D or 3D)
 - Visualization of rooms with devices inside
-- Authentication system with roles → user, home_manager, admin, admin_reader
+- Authentication (OAuth2 Bearer JWT) with roles → `User`, `Admin`
+  (planned: `home_manager`, `admin_reader`, …)
 - Household (home) management system
 - Voice assistant (bonus)
 - Device simulators to test before buying (bonus)
@@ -20,6 +21,24 @@
 ---
 
 ## Technical guide
+
+### Authentication (OAuth2 Bearer JWT)
+
+Auth uses **OAuth2 Bearer JWT**. There is **no external verification
+server**: the API issues the token and validates it locally.
+
+1. Register: `POST /auth/register`
+2. Login: `POST /auth/login` → `{ "access_token": "<jwt>", "token_type": "Bearer" }`
+3. Call protected routes with:
+   `Authorization: Bearer <access_token>`
+
+The token expires after `JwtConfig.ExpirationTime` minutes
+(default `60`). After expiry, log in again.
+
+Protect a route with `.RequireAuthorization("User")` or
+`.RequireAuthorization("Admin")`. JWT settings live under `JwtConfig`
+in `appsettings*.json`; the signing `Key` comes from user-secrets /
+environment variables. More detail: `Documentation/DAT.md` §9.
 
 ### Naming convention
 

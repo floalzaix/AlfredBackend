@@ -30,6 +30,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Backend.DAL.Interfaces;
+using Backend.DAL.Repositories;
 
 namespace Backend.DAL;
 
@@ -65,6 +67,8 @@ public static class DependencyInjection {
         //
         //  Repositories registry
         //
+
+        services.AddScoped<IAuthRepo, AuthRepo>();
 
         return services;
     }

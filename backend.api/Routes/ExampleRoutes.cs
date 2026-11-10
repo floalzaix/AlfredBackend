@@ -67,6 +67,6 @@ public static class ExampleRoutes {
             [AsParameters] GetHelloWorldDTO hw
         ) => {
             return controller.GetHelloWorld(hw);
-        });
+        }).RequireAuthorization("User");
     }
 }
