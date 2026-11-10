@@ -24,6 +24,7 @@
 //
 
 using Microsoft.EntityFrameworkCore;
+using Backend.Models;
 
 namespace Backend.DAL;
 
@@ -38,9 +39,8 @@ public class AppDbContext(
     //  Entities registry
     //
 
-    // public DbSet<MyExampleModel> MyExampleModels => Set<MyExampleModel>();
-
-    // YOURS
+    public DbSet<Household> Households => Set<Household>();
+    public DbSet<HouseholdMember> HouseholdMembers => Set<HouseholdMember>();
 
     //
     //  Constraints registry
@@ -49,13 +49,17 @@ public class AppDbContext(
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
         base.OnModelCreating(modelBuilder);
 
-        // modelBuilder.Entity<MyExampleModel>(model => {
-        //     model.HasOne(model => model.myExampleCategory)
-        //         .WithMany(category => category.myExampleModel)
-        //         .HasForeignKey(model => model.myExampleCategoryId)
-        //         .OnDelete(DeleteBehavior.Restrict); <- Could be DeleteBehavior.Cascade too
-        // });
-
-        // YOURS
+        modelBuilder.Entity<Household>(model => {
+            model.HasKey(h => h.Id);
+            model.Property(h => h.Name).HasMaxLength(100).IsRequired();
+            model.Property(h => h.InvitationCode).HasMaxLength(16).IsRequired();
+            model.HasIndex(h => h.InvitationCode).IsUnique().HasDatabaseName("UX_Households_InvitationCode");
+        });
+        modelBuilder.Entity<HouseholdMember>(model => {
+            model.HasKey(m => new { m.HouseholdId, m.UserId });
+            model.Property(m => m.UserId).HasMaxLength(128).IsRequired();
+            model.HasOne(m => m.Household).WithMany().HasForeignKey(m => m.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

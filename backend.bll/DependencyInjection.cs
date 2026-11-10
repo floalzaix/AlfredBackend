@@ -59,6 +59,7 @@ public static class DependencyInjection {
         //
 
         services.AddScoped<IExampleService, ExampleService>();
+        services.AddScoped<IHouseholdService, HouseholdService>();
 
         return services;
     }

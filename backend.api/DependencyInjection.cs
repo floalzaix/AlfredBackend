@@ -59,6 +59,7 @@ public static class DependencyInjection {
         //
 
         services.AddScoped<ExampleController>();
+        services.AddScoped<HouseholdController>();
 
         return services;
     }
