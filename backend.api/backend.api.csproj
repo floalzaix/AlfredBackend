@@ -9,9 +9,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
-    <ProjectReference Include="..\Backend.BLL\Backend.BLL.csproj" />
-    <ProjectReference Include="..\Backend.DAL\Backend.DAL.csproj" />
-    <ProjectReference Include="..\Backend.Models\Backend.Models.csproj" />
+    <ProjectReference Include="..\backend.bll\backend.bll.csproj" />
+    <ProjectReference Include="..\backend.dal\backend.dal.csproj" />
+    <ProjectReference Include="..\backend.models\backend.models.csproj" />
   </ItemGroup>
 
 </Project>
