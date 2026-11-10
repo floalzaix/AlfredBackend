@@ -17,7 +17,7 @@ ENV POSTGRES_USER=2c032f06 \
     POSTGRES_DB=alfred_db \
     PGPORT=4040
 
-RUN groupadd -gid 2222 alfred && useradd -gid 2222 -uid 2222 alfred
+RUN groupadd --gid 2222 alfred && useradd --gid 2222 --uid 2222 alfred
 
 VOLUME /var/lib/postgresql
 
