@@ -416,8 +416,11 @@ public static class DeviceRoutes {
 `.RequireAuthorization("User")` or `"Admin"`. The client sends
 `Authorization: Bearer <access_token>` (token from `POST /auth/login`).
 There is **no external verification server** — the API validates the
-JWT locally. Token lifetime: `JwtConfig.ExpirationTime` minutes.
-See `DAT.md` §9 / `AGENTS.md` (Authentication).
+JWT locally and checks that the `jti` is still active (logout revokes
+it via `POST /auth/logout`). Token lifetime:
+`JwtConfig.ExpirationTime` minutes. Expired `UserToken` rows are
+cleaned by `TokenCleanupBackgroundService`. See `DAT.md` §9 /
+`AGENTS.md` (Authentication).
 
 Important binding rule:
 

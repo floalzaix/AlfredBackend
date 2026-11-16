@@ -86,7 +86,7 @@ Service (business rules) → Repository (DB access) → Model.
 | --- | --- |
 | `Backend.DAL/DependencyInjection.cs` | `DALConfig`, `AppDbContext`, repositories |
 | `Backend.BLL/DependencyInjection.cs` | Services (`I*Service` → `*Service`) |
-| `Backend.API/DependencyInjection.cs` | Controllers |
+| `Backend.API/DependencyInjection.cs` | Controllers, `TokenCleanupBackgroundService` |
 
 ### Adding configuration for a project
 
@@ -145,6 +145,7 @@ Reference: `Backend.DAL/DALConfig.cs`.
 | --- | --- | --- | --- |
 | POST | `/auth/register` | Public | Create a user (username, email, password) |
 | POST | `/auth/login` | Public | Validate credentials; return a Bearer JWT |
+| POST | `/auth/logout` | `User` policy | Revoke the current JWT (`jti` removed from DB) |
 | GET | `/example/hello_world?name=` | `User` policy | Returns an `ExempleUser` (Id + Name) |
 
 - Local URLs: `http://localhost:5230`, `https://localhost:7247`
@@ -156,23 +157,40 @@ Reference: `Backend.DAL/DALConfig.cs`.
 
 Auth is **JWT Bearer**. There is **no external token verification /
 introspection server**. The API issues the JWT on login and validates
-it locally on each protected request.
+it locally on each protected request. Revocation uses persisted token
+ids (`jti` in `UserToken`).
 
 **Flow**
 
 1. `POST /auth/register` — create an account
-2. `POST /auth/login` — get `{ access_token, token_type: "Bearer" }`
+2. `POST /auth/login` — get `{ access_token, token_type: "Bearer" }`;
+   the JWT `jti` is stored in `UserToken`
 3. Call protected routes with header:
    `Authorization: Bearer <access_token>`
 4. ASP.NET Core JWT Bearer middleware validates signature, issuer,
    audience, and expiration locally (no remote auth server)
+5. Authorization also checks that the `jti` is still active
+   (`ActiveJtiHandler`) so logged-out tokens are rejected
+6. `POST /auth/logout` (policy `User`) — deletes the current `jti`
+   from the database (token revoked before natural expiry)
 
 **Token**
 
 - Format: JWT (HMAC-SHA256)
-- Claims: `sub` (user id), `name`, `role`
+- Claims: `sub` (user id), `name`, `role`, `jti` (token id)
 - Lifetime: `JwtConfig.ExpirationTime` minutes (default `60`)
-- After expiry, the client must log in again to get a new token
+- After expiry or logout, the client must log in again to get a new
+  token
+
+**Logout and token cleanup daemon**
+
+- Logout removes the matching `UserToken` row for the request JWT
+- `TokenCleanupBackgroundService` (`BackgroundService` in
+  `Backend.API`) runs with the API process and every **5 minutes**
+  calls `IAuthService.CleanupExpiredTokensAsync()` to delete expired
+  `UserToken` rows
+- The hosted service only schedules work and opens a DI scope; cleanup
+  logic stays in the BLL
 
 **Protecting a route**
 
@@ -197,6 +215,8 @@ Swagger (dev): use the `bearer` security scheme and paste the JWT
 | Topic | State |
 | --- | --- |
 | Authentication / role authorization | Implemented (JWT Bearer + `User` / `Admin` policies) |
+| Logout / JWT revocation (`jti` + `UserToken`) | Implemented |
+| Expired-token cleanup daemon | Implemented (`TokenCleanupBackgroundService`) |
 | HTTPS | Redirection enabled |
 | Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |

@@ -70,6 +70,9 @@ Set the JWT signing key used by token generation and local validation.
 There is no external verification server: put
 `Authorization: Bearer <access_token>` on protected requests.
 Token lifetime: `JwtConfig.ExpirationTime` minutes (see appsettings).
+Logout: `POST /auth/logout` with the same Bearer token (revokes `jti`).
+The token-cleanup daemon starts automatically with
+`dotnet run --project Backend.API` (no extra command).
 
 
 ## DOTNET

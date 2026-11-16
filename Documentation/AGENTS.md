@@ -19,17 +19,37 @@ All project content (code, comments, docs, commit messages, user-facing strings)
 
 Auth is **JWT Bearer**. There is **no external verification /
 introspection server**. The API issues the JWT on login and validates
-it locally on each protected request.
+it locally on each protected request. Active tokens are tracked by
+`jti` in `UserToken` so logout can revoke them early.
 
 **Client flow**
 
 1. `POST /auth/register` — create an account
 2. `POST /auth/login` — receive `{ access_token, token_type: "Bearer" }`
+   (JWT `jti` persisted in `UserToken`)
 3. Send on protected routes:
    `Authorization: Bearer <access_token>`
+4. `POST /auth/logout` (requires `User`) — revoke the current token by
+   deleting its `jti` from the database
 
 The token expires after `JwtConfig.ExpirationTime` minutes
-(default `60`). After expiry, the client must log in again.
+(default `60`). After expiry or logout, the client must log in again.
+
+**Revocation checks**
+
+- `ActiveJtiHandler` ensures the JWT `jti` still exists before
+  authorization succeeds (logged-out tokens are rejected)
+- Do not bypass this by parsing tokens manually in controllers /
+  services
+
+**Token cleanup daemon**
+
+- `TokenCleanupBackgroundService` is a hosted `BackgroundService`
+  registered in `Backend.API` DI
+- It runs with the API process and every 5 minutes deletes expired
+  `UserToken` rows via `IAuthService.CleanupExpiredTokensAsync()`
+- Keep cleanup business logic in the BLL; the hosted service only
+  schedules and opens a DI scope
 
 **Protecting routes**
 
@@ -38,7 +58,8 @@ The token expires after `JwtConfig.ExpirationTime` minutes
 .RequireAuthorization("Admin")  // role Admin only
 ```
 
-Public auth routes stay without `.RequireAuthorization(...)`.
+Public auth routes (`/auth/register`, `/auth/login`) stay without
+`.RequireAuthorization(...)`. Logout is protected (`User`).
 JWT middleware is already wired in `Program.cs`
 (`UseAuthentication` / `UseAuthorization`). Do not reimplement
 token parsing in controllers or services.
@@ -323,7 +344,7 @@ Each layer owns its registrations and chains the layer below:
 
 | File | Calls next | Registers |
 | --- | --- | --- |
-| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers |
+| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers, `TokenCleanupBackgroundService` |
 | `Backend.BLL/DependencyInjection.cs` | `AddDAL()` | services (`I*Service` → `*Service`) |
 | `Backend.DAL/DependencyInjection.cs` | — | `AppDbContext`, repositories |
 

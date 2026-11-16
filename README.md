@@ -25,15 +25,22 @@
 ### Authentication (JWT Bearer)
 
 Auth uses **JWT Bearer** tokens. There is **no external verification
-server**: the API issues the token and validates it locally.
+server**: the API issues the token and validates it locally. Active
+tokens are also tracked in the database (`UserToken` / JWT `jti`) so
+logout can revoke them before expiry.
 
 1. Register: `POST /auth/register`
 2. Login: `POST /auth/login` → `{ "access_token": "<jwt>", "token_type": "Bearer" }`
 3. Call protected routes with:
    `Authorization: Bearer <access_token>`
+4. Logout: `POST /auth/logout` (requires `User`) — revokes the current
+   token by removing its `jti` from the database
 
 The token expires after `JwtConfig.ExpirationTime` minutes
-(default `60`). After expiry, log in again.
+(default `60`). After expiry or logout, log in again.
+
+A background daemon (`TokenCleanupBackgroundService`) runs with the
+API and periodically deletes expired `UserToken` rows (every 5 minutes).
 
 Protect a route with `.RequireAuthorization("User")` or
 `.RequireAuthorization("Admin")`. JWT settings live under `JwtConfig`

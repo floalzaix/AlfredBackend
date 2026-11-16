@@ -12,7 +12,9 @@
 - Run the local PostgreSQL with `Backend.DAL/Dockerfile` (see `commands.md`)
 - JWT Bearer auth: login → `access_token` → `Authorization` header;
   local validation (no introspection server); token expiry
-  (`JwtConfig.ExpirationTime`); policies `User` / `Admin`
+  (`JwtConfig.ExpirationTime`); policies `User` / `Admin`;
+  logout (`POST /auth/logout`) revokes the JWT `jti` in `UserToken`;
+  `TokenCleanupBackgroundService` daemon cleans expired tokens
   (see `DAT.md` §9)
 - C# annotations
 - Read example files and try implementing something yourself (without committing) to see if it works. ("Blank page syndrome" is normal—if blocked, ask the AI for help to get an overview.)
