@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Backend.Models;
+using Backend.Models.Exceptions;
 using Backend.BLL.Interfaces;
 using Backend.DAL.Interfaces;
 
@@ -66,17 +67,20 @@ public class AuthService(
     }
 
     public async Task<(Guid, string)> Login(string email, string password) {
-        User user = await this.userRepository.GetUserByEmail(email);
+        User? user = await this.userRepository.GetUserByEmail(email);
 
-        if (passwordHasher.VerifyHashedPassword(
-            user,
-            user.PasswordHash,
-            password
-        ) != PasswordVerificationResult.Success) {
-            throw new Exception("Invalid password !");
+        bool isPasswordValid = user is not null
+            && passwordHasher.VerifyHashedPassword(
+                user,
+                user.PasswordHash,
+                password
+            ) == PasswordVerificationResult.Success;
+
+        if (!isPasswordValid) {
+            throw new UnauthorizedException("Invalid credentials.");
         }
 
-        return (user.Id, await this.generateToken(user));
+        return (user!.Id, await this.generateToken(user));
     }
 
     private async Task<string> generateToken(User user) {

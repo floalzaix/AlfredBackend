@@ -35,10 +35,8 @@ public class AuthRepo(AppDbContext db) : IAuthRepo
         await db.SaveChangesAsync();
     }
 
-    public async Task<User> GetUserByEmail(string email) {
-        User? user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
-
-        return user is null ? throw new Exception("User not found") : user;
+    public async Task<User?> GetUserByEmail(string email) {
+        return await db.Users.FirstOrDefaultAsync(u => u.Email == email);
     }
 
     public async Task CreateUserToken(UserToken userToken) {

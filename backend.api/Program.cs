@@ -98,6 +98,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 var app = builder.Build();
 
 //
+//  Exception handler
+//
+
+app.UseExceptionHandler();
+
+//
 //  Auth usage
 //
 

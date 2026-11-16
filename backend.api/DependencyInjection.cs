@@ -28,7 +28,6 @@
  */
 
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.DependencyInjection;
 using Backend.API.Controllers;
 using Backend.BLL;
 
@@ -77,6 +76,13 @@ public static class DependencyInjection {
                 policy.RequireRole("Admin");
                 policy.AddRequirements(new ActiveJtiRequirement());
             });
+
+        //
+        //  Exception handler
+        //
+        
+        services.AddExceptionHandler<GlobalExceptionHandler>();
+        services.AddProblemDetails();
 
         //
         //  Hosted services

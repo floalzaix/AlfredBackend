@@ -29,27 +29,29 @@ This backend exposes the API consumed by the client(s) (responsive web).
 - Each layer declares its own DI registrations
 - Thin routes; business logic only in the BLL
 - **REST** resource naming for feature routes
+- **Centralized error handling**: expected failures via `AppException`
+  subtypes; unexpected failures → 500 ProblemDetails
 
 ## 4. Application architecture
 
 ```
 HTTP request
    ↓
-Backend.API     Routes → Controllers → DTOs
+Backend.API     Routes → Controllers → DTOs (+ GlobalExceptionHandler)
    ↓
-Backend.BLL     Interfaces → Services
+Backend.BLL     Interfaces → Services (throw AppException when expected)
    ↓
 Backend.DAL     Repositories → AppDbContext
    ↓
-Backend.Models  Domain models (properties only)
+Backend.Models  Domain models + Exceptions
 ```
 
 | Project | Role | Contents |
 | --- | --- | --- |
-| Backend.API | HTTP entry point | Routes, Controllers, DTOs, API DI |
+| Backend.API | HTTP entry point | Routes, Controllers, DTOs, `GlobalExceptionHandler`, API DI |
 | Backend.BLL | Business logic | Interfaces, Services, BLL DI |
 | Backend.DAL | Persistence | Repositories, `AppDbContext`, `DALConfig`, DAL DI |
-| Backend.Models | Shared models | POCOs without logic |
+| Backend.Models | Shared models | POCOs without logic, `Exceptions/` |
 
 **Dependency rules**
 
@@ -63,7 +65,23 @@ Backend.Models  Domain models (properties only)
 DI is **chained**: `Program.cs` → `AddAPI()` → `AddBLL()` → `AddDAL()`.
 
 **Request flow**: Route (binding) → Controller (DTO → service call) →
-Service (business rules) → Repository (DB access) → Model.
+Service (business rules; may throw `AppException`) → Repository
+(DB access) → Model. Uncaught exceptions → `GlobalExceptionHandler`
+→ ProblemDetails.
+
+**Error handling**
+
+| Piece | Role |
+| --- | --- |
+| `Backend.Models/Exceptions/AppException` (+ subtypes) | Expected errors with HTTP status + title |
+| `UnauthorizedException` / `NotFoundException` / `ConflictException` | 401 / 404 / 409 |
+| `Backend.API/GlobalExceptionHandler` | `IExceptionHandler`: maps `AppException` or returns generic 500 |
+| `AddExceptionHandler` + `AddProblemDetails` + `UseExceptionHandler()` | Pipeline wiring |
+
+Services throw subtypes for expected failures; repositories should
+prefer `null` / empty results. Do not throw bare `Exception` for
+business cases. Details: `AGENTS.md` (Error handling) and
+`HOW_TO_ADD_A_FEATURE.md`.
 
 ## 5. Technical stack
 
@@ -86,7 +104,7 @@ Service (business rules) → Repository (DB access) → Model.
 | --- | --- |
 | `Backend.DAL/DependencyInjection.cs` | `DALConfig`, `AppDbContext`, repositories |
 | `Backend.BLL/DependencyInjection.cs` | Services (`I*Service` → `*Service`) |
-| `Backend.API/DependencyInjection.cs` | Controllers, `TokenCleanupBackgroundService` |
+| `Backend.API/DependencyInjection.cs` | Controllers, exception handler, `TokenCleanupBackgroundService` |
 
 ### Adding configuration for a project
 
@@ -217,6 +235,7 @@ Swagger (dev): use the `bearer` security scheme and paste the JWT
 | Authentication / role authorization | Implemented (JWT Bearer + `User` / `Admin` policies) |
 | Logout / JWT revocation (`jti` + `UserToken`) | Implemented |
 | Expired-token cleanup daemon | Implemented (`TokenCleanupBackgroundService`) |
+| Global error handling | Implemented (`AppException` + `GlobalExceptionHandler` + ProblemDetails) |
 | HTTPS | Redirection enabled |
 | Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |
@@ -240,7 +259,8 @@ Swagger (dev): use the `bearer` security scheme and paste the JWT
 - Primary constructors preferred; project content (code, docs, messages)
   in English
 - Adding a feature: follow the `Example*` template layer by layer
-  (checklist in `AGENTS.md` and `HOW_TO_ADD_A_FEATURE.md`)
+  (checklist in `AGENTS.md` and `HOW_TO_ADD_A_FEATURE.md`), including
+  expected `AppException` error paths
 
 ## 12. Attention points
 

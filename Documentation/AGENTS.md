@@ -75,22 +75,24 @@ user-secrets / env (never commit it). Details: `DAT.md` §9.
 HTTP request
     ↓
 Backend.API        Routes → Controllers → DTOs
+                   (+ GlobalExceptionHandler)
     ↓
 Backend.BLL        Interfaces (I*Service) → Services
+                   (throw AppException for expected errors)
     ↓
 Backend.DAL        Interfaces (I*Repository) → Repositories → AppDbContext
     ↓
-Backend.Models     Shared domain models (properties only)
+Backend.Models     Shared domain models + Exceptions
 ```
 
 ### Projects and responsibilities
 
 | Project | Role | May contain |
 | --- | --- | --- |
-| `Backend.API` | HTTP edge | Routes, Controllers, DTOs, API DI |
+| `Backend.API` | HTTP edge | Routes, Controllers, DTOs, `GlobalExceptionHandler`, API DI |
 | `Backend.BLL` | Business logic | `Interfaces/`, `Services/`, BLL DI |
 | `Backend.DAL` | Persistence | `Interfaces/`, `Repositories/`, `AppDbContext`, DAL DI |
-| `Backend.Models` | Shared models | POCOs with properties only |
+| `Backend.Models` | Shared models | POCOs with properties only, `Exceptions/` |
 
 ### Dependency rules (do not break)
 
@@ -124,9 +126,62 @@ next layer’s `Add*()` method.
 
 1. **Route** (`Backend.API/Routes`) — exposes the HTTP endpoint, binds input, injects the controller
 2. **Controller** (`Backend.API/Controllers`) — maps DTO → service call, returns the result
-3. **Service** (`Backend.BLL/Services` via interface) — business rules
-4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) — database access when needed
+3. **Service** (`Backend.BLL/Services` via interface) — business rules; throws `AppException` subtypes for expected failures
+4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) — database access when needed (prefer returning `null` / empty over throwing business errors)
 5. **Model** (`Backend.Models`) — shared shape of domain data
+6. **On error** — uncaught exceptions bubble to `GlobalExceptionHandler` (`IExceptionHandler`): `AppException` → matching HTTP status + ProblemDetails; anything else → 500
+
+---
+
+## Error handling
+
+Expected business failures must **not** become opaque 500 responses.
+Use the shared exception hierarchy and the global handler.
+
+### Pieces
+
+| Piece | Location | Role |
+| --- | --- | --- |
+| `AppException` (+ subtypes) | `Backend.Models/Exceptions/` | Expected errors with `StatusCode` + `Title` |
+| `GlobalExceptionHandler` | `Backend.API/GlobalExceptionHandler.cs` | Maps exceptions → ProblemDetails JSON |
+| Registration | `AddExceptionHandler` + `AddProblemDetails` in API DI; `app.UseExceptionHandler()` early in `Program.cs` | Wires the pipeline |
+
+Existing subtypes:
+
+| Type | HTTP | Typical use |
+| --- | --- | --- |
+| `UnauthorizedException` | 401 | Bad credentials, missing auth context |
+| `NotFoundException` | 404 | Resource does not exist |
+| `ConflictException` | 409 | Duplicate / state conflict |
+
+Add a new subtype under `Backend.Models/Exceptions/` only when none of
+the above fits (keep the HTTP status in the constructor, as integers —
+Models must not reference ASP.NET).
+
+### Rules
+
+- **Throw from the BLL** (services) for expected business failures:
+  `throw new NotFoundException("Device not found.");`
+- Prefer repositories that return `T?` / empty collections; let the
+  service decide which `AppException` to throw
+- Do **not** `try/catch` in every controller/route just to map status
+  codes — the global handler already does that
+- Do **not** throw bare `Exception` / `InvalidOperationException` for
+  expected cases (those become 500)
+- Keep messages **English** and safe for clients (e.g. login failures:
+  `"Invalid credentials."` — do not reveal whether email or password failed)
+- Unexpected bugs stay uncaught → handler logs + generic 500 ProblemDetails
+  (no stack trace to the client)
+
+### Feature work
+
+When implementing a feature, list expected failure modes (not found,
+conflict, forbidden business rule, …) and throw the matching
+`AppException` subtype from the service. Smoke-test those paths as well
+as the happy path.
+
+Reference: `AuthService.Login` → `UnauthorizedException`; handler in
+`GlobalExceptionHandler`.
 
 ---
 
@@ -164,13 +219,16 @@ Feature: <Name>
 [ ] 6. EF migration (if persistence)
 [ ] 7. Service interface in Backend.BLL/Interfaces
 [ ] 8. Service implementation in Backend.BLL/Services
+       (throw AppException subtypes for expected errors)
 [ ] 9. Register service in Backend.BLL/DependencyInjection.cs
 [ ] 10. Request/response DTOs in Backend.API/DTOs
 [ ] 11. Controller in Backend.API/Controllers
 [ ] 12. Register controller in Backend.API/DependencyInjection.cs
 [ ] 13. Routes in Backend.API/Routes + Map* in Program.cs
 [ ] 14. RequireAuthorization on private routes (User / Admin)
-[ ] 15. Build and smoke-test the endpoints (Bearer token in Swagger)
+[ ] 15. Expected errors covered (AppException / existing subtypes)
+[ ] 16. Build and smoke-test happy path + error paths
+       (Bearer token in Swagger when protected)
 ```
 
 ### Step details
@@ -179,11 +237,14 @@ Feature: <Name>
 
 - Properties only (no business logic, no EF attributes unless required later)
 - Shared across layers intentionally (avoid duplicating the same type per layer)
+- Shared exceptions live in `Backend.Models/Exceptions/` (do not put
+  feature-specific HTTP mapping in Models)
 
 #### 2–6. Persistence — `Backend.DAL` (when needed)
 
 - Interface: `I<Feature>Repository` in `Interfaces/` (same pattern as BLL)
 - Implementation: `<Feature>Repository` in `Repositories/`
+- Prefer `Task<T?>` / empty results over throwing business exceptions here
 - **Register the model in `AppDbContext` (`Database.cs`)** — required for EF to create the table and keep it in sync via migrations:
   - Add `public DbSet<YourModel> YourModels => Set<YourModel>();`
   - Declare relationships / constraints in `OnModelCreating` when needed
@@ -197,6 +258,10 @@ Feature: <Name>
 - Interface: `I<Feature>Service` in `Interfaces/`
 - Implementation: `<Feature>Service` in `Services/`, depends on repository interfaces (not concrete types)
 - Register: `services.AddScoped<I<Feature>Service, <Feature>Service>();`
+- For each expected failure, `throw` an `AppException` subtype
+  (`NotFoundException`, `ConflictException`, `UnauthorizedException`, …).
+  The API global handler maps it to ProblemDetails — no local try/catch
+  required in the controller
 
 #### 10–13. HTTP edge — `Backend.API`
 
@@ -260,6 +325,12 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
 - Do not leave private routes open; add `.RequireAuthorization(...)`
 - Do not add an external JWT introspection / verification server; validation
   stays local in the API
+- Do not throw bare `Exception` for expected business failures (use
+  `AppException` subtypes so clients get the right status, not 500)
+- Do not catch exceptions in every controller just to write HTTP status
+  codes — rely on `GlobalExceptionHandler`
+- Do not reintroduce `UseDeveloperExceptionPage` for this API unless you
+  accept HTML stack traces instead of ProblemDetails in Development
 
 ---
 
@@ -344,7 +415,7 @@ Each layer owns its registrations and chains the layer below:
 
 | File | Calls next | Registers |
 | --- | --- | --- |
-| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers, `TokenCleanupBackgroundService` |
+| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers, exception handler, `TokenCleanupBackgroundService` |
 | `Backend.BLL/DependencyInjection.cs` | `AddDAL()` | services (`I*Service` → `*Service`) |
 | `Backend.DAL/DependencyInjection.cs` | — | `AppDbContext`, repositories |
 
@@ -410,4 +481,4 @@ dotnet run --project Backend.API
 2. Respect the dependency table above
 3. Prefer a thin route + controller + interface service over shortcuts
 4. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
-)
+

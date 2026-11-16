@@ -43,12 +43,18 @@ Browser / frontend
         │
         ▼
 3. Service        (business rules)        Backend.BLL/Services
-        │
+        │                                 (throw AppException on expected failures)
         ▼
 4. Repository     (talk to the database)  Backend.DAL/Interfaces + Repositories   ← only if you save data
         │
         ▼
 5. Model          (shape of the data)     Backend.Models
+
+On error (any layer, uncaught):
+        │
+        ▼
+   GlobalExceptionHandler                 Backend.API
+   → ProblemDetails JSON (401 / 404 / 409 / … or 500)
 ```
 
 Rule of thumb:
@@ -56,9 +62,11 @@ Rule of thumb:
 - **Route** = “where is the door?”
 - **DTO** = “what data is allowed to enter?”
 - **Controller** = “who do I call next?”
-- **Service** = “what is the real work?”
+- **Service** = “what is the real work?” (+ expected error cases)
 - **Repository** = “how do I read/write the database?”
 - **Model** = “what does this data look like inside the app?”
+- **AppException** = “this failure is expected; map it to a proper HTTP status”
+- **GlobalExceptionHandler** = “turn uncaught exceptions into ProblemDetails”
 
 ---
 
@@ -79,14 +87,16 @@ Replace `Device` with your own name in every file.
 [ ] Step 1  — Model
 [ ] Step 2  — Repository (+ database)   [skip if no DB yet]
 [ ] Step 3  — Service interface
-[ ] Step 4  — Service implementation
+[ ] Step 4  — Service implementation (+ AppException for expected errors)
 [ ] Step 5  — Register the service (BLL DI)
 [ ] Step 6  — DTOs
 [ ] Step 7  — Controller
 [ ] Step 8  — Register the controller (API DI)
 [ ] Step 9  — Routes (+ RequireAuthorization when private)
 [ ] Step 10 — Map the routes in Program.cs
-[ ] Step 11 — Build and test (Bearer JWT in Swagger if protected)
+[ ] Step 11 — Review expected error paths (status codes / messages)
+[ ] Step 12 — Build and test happy path + error paths
+              (Bearer JWT in Swagger if protected)
 ```
 
 Work **from the bottom of the stack upward** (model → … → route).
@@ -169,6 +179,10 @@ public interface IDeviceRepository {
 }
 ```
 
+Prefer returning `Device?` (or empty lists) when nothing is found.
+Let the **service** decide whether that is a `NotFoundException` or
+another business rule.
+
 ### 2.3 Repository implementation
 
 **File to create:** `Backend.DAL/Repositories/DeviceRepository.cs`
@@ -238,35 +252,50 @@ Look at: `Backend.BLL/Services/ExampleService.cs`
 
 ```csharp
 using Backend.Models;
+using Backend.Models.Exceptions;
 using Backend.BLL.Interfaces;
+using Backend.DAL.Interfaces;
 
 namespace Backend.BLL.Services;
 
-public class DeviceService : IDeviceService {
-    public Device GetDevice(string name) {
-        return new Device {
-            Id = Guid.NewGuid(),
-            Name = name
-        };
+public class DeviceService(
+    IDeviceRepository _deviceRepository
+) : IDeviceService {
+    public async Task<Device> GetDeviceAsync(Guid id) {
+        Device? device = await _deviceRepository.GetByIdAsync(id);
+
+        if (device is null) {
+            throw new NotFoundException("Device not found.");
+        }
+
+        return device;
     }
 }
 ```
 
-If you have a repository, inject it in the constructor:
+If you have a repository, inject it in the constructor (as above) and
+call it from your methods.
 
-```csharp
-public class DeviceService(
-    IDeviceRepository _deviceRepository
-) : IDeviceService {
-    // call _deviceRepository inside your methods
-}
-```
+**Expected errors:** list what can go wrong for the user (not found,
+duplicate name, bad credentials, …). For each case, throw an
+`AppException` subtype from `Backend.Models.Exceptions`:
+
+| Exception | HTTP status | Example |
+| --- | --- | --- |
+| `UnauthorizedException` | 401 | Invalid credentials |
+| `NotFoundException` | 404 | Device / home missing |
+| `ConflictException` | 409 | Duplicate email / name |
+
+You do **not** catch these in the controller. They bubble up to
+`GlobalExceptionHandler`, which returns ProblemDetails JSON.
 
 Rules:
 
 - Put business decisions here
 - Do **not** read HTTP details here (no DTOs from the API project)
 - Do **not** use `AppDbContext` directly here (use the repository)
+- Do **not** throw bare `new Exception("…")` for expected cases
+  (that becomes a 500)
 
 ---
 
@@ -457,7 +486,30 @@ new feature (and register the new types in each layer’s
 
 ---
 
-## Step 11 — Build and test
+## Step 11 — Review expected error paths
+
+Before testing, write down the failure cases for your feature and check
+that the service throws the right `AppException` subtype.
+
+Examples:
+
+- Get missing id → `NotFoundException` → client sees **404** ProblemDetails
+- Create duplicate → `ConflictException` → **409**
+- Bad login → `UnauthorizedException` → **401** (generic message)
+
+Reference files:
+
+- `Backend.Models/Exceptions/AppException.cs`
+- `Backend.API/GlobalExceptionHandler.cs`
+- `Backend.BLL/Services/AuthService.cs` (login credentials)
+
+You should **not** add a new exception handler per feature. Reuse the
+global one. Only add a new exception **type** if none of the existing
+subtypes fit.
+
+---
+
+## Step 12 — Build and test
 
 ```bash
 dotnet build
@@ -470,6 +522,9 @@ If the route is protected: call `POST /auth/login`, copy `access_token`,
 authorize in Swagger with the `bearer` scheme (paste the JWT **without**
 the `Bearer` prefix), then call your route.
 
+Also test at least one **error path** (wrong id, bad body, …) and check
+that the status code is not a blind 500 when the failure was expected.
+
 If something fails, check these common mistakes first:
 
 | Symptom | Likely cause |
@@ -480,6 +535,7 @@ If something fails, check these common mistakes first:
 | Validation never rejects bad input | `AddValidation()` not registered in `Program.cs` |
 | `401 Unauthorized` | Missing / expired Bearer token, or route not authorized |
 | `403 Forbidden` | Valid token but wrong role for the policy |
+| Expected business error returns `500` | Threw bare `Exception` instead of an `AppException` subtype |
 
 ---
 
@@ -490,6 +546,7 @@ For a feature named `Device`, you typically touch:
 ```
 Backend.Models/
   DeviceModels.cs
+  Exceptions/AppException.cs          (shared — reuse, rarely edit)
 
 Backend.DAL/                          (only if persistence)
   Database.cs                         (edit AppDbContext)
@@ -499,13 +556,14 @@ Backend.DAL/                          (only if persistence)
 
 Backend.BLL/
   Interfaces/IDeviceService.cs
-  Services/DeviceService.cs
+  Services/DeviceService.cs           (throw AppException subtypes)
   DependencyInjection.cs              (edit)
 
 Backend.API/
   DTOs/DeviceDTOs.cs
   Controllers/DeviceController.cs
   Routes/DeviceRoute.cs
+  GlobalExceptionHandler.cs           (shared — reuse, rarely edit)
   DependencyInjection.cs              (edit)
   Program.cs                          (edit: MapDeviceRoutes)
 ```
@@ -545,9 +603,10 @@ The JSON section name must match the string passed to `BindConfiguration`.
 5. Persist models by declaring them on `AppDbContext` in `Database.cs`
 6. Keep route names REST (resource nouns + HTTP verbs)
 7. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
-8. Keep each file focused on its job
-9. Write code and comments in **English**
+8. Throw `AppException` subtypes for expected errors (not bare `Exception`)
+9. Keep each file focused on its job
+10. Write code and comments in **English**
 
-If you are stuck, open the matching `Example*` file for that layer and
-mirror it line by line with your feature name.
+If you are stuck, open the matching `Example*` / `Auth*` file for that
+layer and mirror it line by line with your feature name.
 )

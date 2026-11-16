@@ -16,7 +16,7 @@ using Backend.Models;
 
 public interface IAuthRepo {
     public Task CreateUser(User user);
-    public Task<User> GetUserByEmail(string email);
+    public Task<User?> GetUserByEmail(string email);
     public Task CreateUserToken(UserToken userToken);
     public Task<bool> ExistsUserTokenByJti(string jti);
     public Task DeleteUserToken(string jti);
