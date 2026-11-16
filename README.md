@@ -10,7 +10,7 @@
 - Basic functions for actuators and sensor displays
 - 1 dimension scene management system for LED synchronization (potential to upgrade to 2D or 3D)
 - Visualization of rooms with devices inside
-- Authentication (OAuth2 Bearer JWT) with roles → `User`, `Admin`
+- Authentication (JWT Bearer) with roles → `User`, `Admin`
   (planned: `home_manager`, `admin_reader`, …)
 - Household (home) management system
 - Voice assistant (bonus)
@@ -22,9 +22,9 @@
 
 ## Technical guide
 
-### Authentication (OAuth2 Bearer JWT)
+### Authentication (JWT Bearer)
 
-Auth uses **OAuth2 Bearer JWT**. There is **no external verification
+Auth uses **JWT Bearer** tokens. There is **no external verification
 server**: the API issues the token and validates it locally.
 
 1. Register: `POST /auth/register`

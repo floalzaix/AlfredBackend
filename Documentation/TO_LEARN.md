@@ -10,7 +10,7 @@
 - Definition of database migrations
 - Understand how database integration works in an application
 - Run the local PostgreSQL with `Backend.DAL/Dockerfile` (see `commands.md`)
-- OAuth2 Bearer JWT: login → `access_token` → `Authorization` header;
+- JWT Bearer auth: login → `access_token` → `Authorization` header;
   local validation (no introspection server); token expiry
   (`JwtConfig.ExpirationTime`); policies `User` / `Admin`
   (see `DAT.md` §9)

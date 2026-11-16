@@ -7,12 +7,15 @@
  * This way with the given token in the header of the requests
  * the user can access routes depending on his privileges.
  * 
- * The auth uses JWT bearer tokens with OAuth2.0 flow.
+ * The auth uses JWT Bearer tokens (local validation, no
+ * external auth server).
  */
 
 //
 //  Imports
 //
+
+using System.Security.Claims;
 
 using Backend.API.DTOs;
 using Backend.API.Controllers;
@@ -45,5 +48,12 @@ public static class AuthRoutes {
         ) => {
             return await authController.Login(loginRequestDTO);
         });
+
+        authRouter.MapPost("/logout", async(
+            AuthController authController,
+            ClaimsPrincipal claimsPrincipal
+        ) => {
+            return await authController.Logout(claimsPrincipal);
+        }).RequireAuthorization("User");
     }
 }

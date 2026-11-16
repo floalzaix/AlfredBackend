@@ -40,4 +40,36 @@ public class AuthRepo(AppDbContext db) : IAuthRepo
 
         return user is null ? throw new Exception("User not found") : user;
     }
+
+    public async Task CreateUserToken(UserToken userToken) {
+        db.UserTokens.Add(userToken);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<bool> ExistsUserTokenByJti(string jti) {
+        DateTime now = DateTime.UtcNow;
+
+        return await db.UserTokens.AnyAsync(
+            ut => ut.Jti == jti && ut.ExpiresAt > now
+        );
+    }
+
+    public async Task DeleteUserToken(string jti) {
+        UserToken? userToken = await db.UserTokens.SingleOrDefaultAsync(
+            ut => ut.Jti == jti
+        );
+
+        if (userToken is not null) {
+            db.UserTokens.Remove(userToken);
+            await db.SaveChangesAsync();
+        }
+    }
+
+    public async Task<int> DeleteExpiredUserTokensAsync() {
+        DateTime now = DateTime.UtcNow;
+
+        return await db.UserTokens
+            .Where(ut => ut.ExpiresAt <= now)
+            .ExecuteDeleteAsync();
+    }
 }

@@ -64,6 +64,11 @@ var jwtConfig = builder.Configuration
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Keep JWT claim names as issued (role, jti, name, ...).
+        // Default remapping turns "role" into a long URI, which
+        // breaks RequireRole when RoleClaimType is "role".
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
@@ -85,14 +90,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
 
     });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("User", policy =>
-        policy.RequireRole("User", "Admin"));
-    options.AddPolicy("Admin", policy =>
-        policy.RequireRole("Admin"));
-});
 
 //
 //  Application

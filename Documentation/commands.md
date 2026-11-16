@@ -59,7 +59,7 @@ Connection string: `Backend.API/appsettings.Development.json` (`DALConfig`).
 
 ## JWT (user-secrets)
 
-Auth is OAuth2 Bearer JWT. The signing key is **not** in tracked
+Auth is JWT Bearer. The signing key is **not** in tracked
 appsettings — store it in user-secrets (or an env var) for local dev.
 
 ```

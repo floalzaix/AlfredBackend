@@ -41,6 +41,7 @@ public class AppDbContext(
 
     // public DbSet<MyExampleModel> MyExampleModels => Set<MyExampleModel>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
 
     // YOURS
 
@@ -64,6 +65,15 @@ public class AppDbContext(
             user.Property(u => u.Email).HasMaxLength(256);
             user.Property(u => u.PasswordHash).HasMaxLength(512);
             user.Property(u => u.Role).HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<UserToken>(userToken => {
+            userToken.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(ut => ut.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            userToken.HasIndex(ut => ut.Jti).IsUnique();
+            userToken.HasIndex(ut => ut.ExpiresAt);
         });
     }
 }

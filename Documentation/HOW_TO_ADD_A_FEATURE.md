@@ -412,7 +412,7 @@ public static class DeviceRoutes {
 }
 ```
 
-**Auth (OAuth2 Bearer JWT):** protected routes need
+**Auth (JWT Bearer):** protected routes need
 `.RequireAuthorization("User")` or `"Admin"`. The client sends
 `Authorization: Bearer <access_token>` (token from `POST /auth/login`).
 There is **no external verification server** — the API validates the

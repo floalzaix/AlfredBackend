@@ -7,7 +7,7 @@ Instructions for AI agents working on this backend. Follow them for every change
 Alfred — home automation backend (SI & Infra).
 
 - Stack: .NET 10, C#, Minimal APIs, EF Core, PostgreSQL
-- Auth: OAuth2 Bearer JWT (local validation, no introspect server)
+- Auth: JWT Bearer (local validation, no introspect server)
 - Architecture: N-tier (layered)
 - Reference feature: `Example*` across all layers
 
@@ -15,9 +15,9 @@ All project content (code, comments, docs, commit messages, user-facing strings)
 
 ---
 
-## Authentication (OAuth2 Bearer JWT)
+## Authentication (JWT Bearer)
 
-Auth is **OAuth2 Bearer JWT**. There is **no external verification /
+Auth is **JWT Bearer**. There is **no external verification /
 introspection server**. The API issues the JWT on login and validates
 it locally on each protected request.
 
@@ -202,7 +202,7 @@ Feature: <Name>
 - Inject the controller from DI; keep handlers thin
 - Call `app.Map<Feature>Routes();` from `Program.cs`
 - Protect private endpoints with `.RequireAuthorization("User")` or
-  `"Admin"` (OAuth2 Bearer JWT — see Authentication section above)
+  `"Admin"` (JWT Bearer — see Authentication section above)
 
 **REST naming (required for real features):**
 

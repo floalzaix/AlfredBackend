@@ -33,3 +33,20 @@ public class User {
     [Required]
     public string Role { get; set; } = string.Empty;
 }
+
+/**
+ * Stores the user tokens' id to handle the logout process.
+ */
+public class UserToken {
+    [Key]
+    public Guid Id { get; set; }
+
+    [Required]
+    public string Jti { get; set; } = string.Empty; // JSON Web Token ID
+
+    [Required]
+    public Guid UserId { get; set; }
+
+    [Required]
+    public DateTime ExpiresAt { get; set; }
+}

@@ -75,7 +75,7 @@ Service (business rules) → Repository (DB access) → Model.
 | ORM | Entity Framework Core 10 | Configured |
 | Database | PostgreSQL (Npgsql 10.0.0) | Connection strings in appsettings |
 | Validation | DataAnnotations on DTOs and config | Partial for DTOs (see §9) |
-| Auth | OAuth2 Bearer JWT (local validation, no introspect server) | In place |
+| Auth | JWT Bearer (local validation, no introspect server) | In place |
 | Dependency injection | Microsoft.Extensions.DependencyInjection | In place |
 
 ## 6. Dependency injection and typed configuration
@@ -152,11 +152,11 @@ Reference: `Backend.DAL/DALConfig.cs`.
 
 ## 9. Security
 
-### Authentication (OAuth2 Bearer JWT)
+### Authentication (JWT Bearer)
 
-Auth is **OAuth2 Bearer JWT**. There is **no external token
-verification / introspection server**. The API issues the JWT on login
-and validates it locally on each protected request.
+Auth is **JWT Bearer**. There is **no external token verification /
+introspection server**. The API issues the JWT on login and validates
+it locally on each protected request.
 
 **Flow**
 

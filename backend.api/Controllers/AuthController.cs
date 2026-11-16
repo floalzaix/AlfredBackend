@@ -4,6 +4,7 @@
 
 using Backend.API.DTOs;
 using Backend.BLL.Interfaces;
+using System.Security.Claims;
 
 namespace Backend.API.Controllers;
 
@@ -41,5 +42,16 @@ public class AuthController(
             access_token = token,
             token_type = "Bearer"
         });
+    }
+
+    public async Task<IResult> Logout(ClaimsPrincipal claimsPrincipal) {
+        string? jti = claimsPrincipal.FindFirst("jti")?.Value;
+        
+        if (jti == null) {
+            return Results.Unauthorized();
+        }
+
+        await this.authService.Logout(jti);
+        return Results.Ok();
     }
 }

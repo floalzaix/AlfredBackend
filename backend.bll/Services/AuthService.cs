@@ -4,7 +4,8 @@
  * It is meant to validate the user's credentials and
  * return a token if the credentials are valid.
  * 
- * The auth uses JWT bearer tokens with OAuth2.0 flow.
+ * The auth uses JWT Bearer tokens (local validation, no
+ * external auth server).
  * 
  * It also allow to register a new user given a username
  * and the personal information.
@@ -75,31 +76,55 @@ public class AuthService(
             throw new Exception("Invalid password !");
         }
 
-        return (user.Id, this.generateToken(user));
+        return (user.Id, await this.generateToken(user));
     }
 
-    private string generateToken(User user) {
+    private async Task<string> generateToken(User user) {
         var key = new SymmetricSecurityKey(
             Convert.FromBase64String(jwtConfig.Key!)
+        );
+
+        string jti = Guid.NewGuid().ToString();
+        DateTime expiresAt = DateTime.UtcNow.AddMinutes(
+            jwtConfig.ExpirationTime
         );
 
         var token = new JwtSecurityToken(
             issuer: jwtConfig.Issuer,
             audience: jwtConfig.Audience,
             claims: [
-                new Claim("sub", user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim("name", user.Username),
                 new Claim("role", user.Role),
+                new Claim(JwtRegisteredClaimNames.Jti, jti),
             ],
-            expires: DateTime.UtcNow.AddMinutes(
-                jwtConfig.ExpirationTime
-            ),
+            expires: expiresAt,
             signingCredentials: new SigningCredentials(
                 key,
                 SecurityAlgorithms.HmacSha256
             )
         );
 
+        // Persists the token id to the database to handle the logout process.
+        await this.userRepository.CreateUserToken(new UserToken {
+            Id = Guid.NewGuid(),
+            Jti = jti,
+            UserId = user.Id,
+            ExpiresAt = expiresAt
+        });
+
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public async Task<bool> IsTokenActiveAsync(string jti) {
+        return await this.userRepository.ExistsUserTokenByJti(jti);
+    }
+
+    public async Task<int> CleanupExpiredTokensAsync() {
+        return await this.userRepository.DeleteExpiredUserTokensAsync();
+    }
+
+    public async Task Logout(string jti) {
+        await this.userRepository.DeleteUserToken(jti);
     }
 }
