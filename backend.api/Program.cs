@@ -126,6 +126,8 @@ app.UseHttpsRedirection();
 //  Routes
 //
 
+app.UsePathBase("/api");
+
 app.MapExampleRoutes();
 app.MapAuthRoutes();
 

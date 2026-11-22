@@ -70,4 +70,8 @@ public class AuthRepo(AppDbContext db) : IAuthRepo
             .Where(ut => ut.ExpiresAt <= now)
             .ExecuteDeleteAsync();
     }
+
+    public async Task<User?> GetUserById(string userId) {
+        return await db.Users.FindAsync(new Guid(userId));
+    }
 }

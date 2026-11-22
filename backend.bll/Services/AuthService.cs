@@ -139,4 +139,8 @@ public class AuthService(
     public async Task Logout(string jti) {
         await this.userRepository.DeleteUserToken(jti);
     }
+
+    public async Task<User?> GetUserById(string userId) {
+        return await this.userRepository.GetUserById(userId);
+    }
 }

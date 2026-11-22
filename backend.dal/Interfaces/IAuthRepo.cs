@@ -21,4 +21,5 @@ public interface IAuthRepo {
     public Task<bool> ExistsUserTokenByJti(string jti);
     public Task DeleteUserToken(string jti);
     public Task<int> DeleteExpiredUserTokensAsync();
+    public Task<User?> GetUserById(string userId);
 }

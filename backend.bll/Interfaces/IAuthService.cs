@@ -20,4 +20,5 @@ public interface IAuthService {
     Task<bool> IsTokenActiveAsync(string jti);
     Task<int> CleanupExpiredTokensAsync();
     Task Logout(string jti);
+    Task<User?> GetUserById(string userId);
 }

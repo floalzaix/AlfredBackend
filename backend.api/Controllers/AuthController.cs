@@ -4,6 +4,7 @@
 
 using Backend.API.DTOs;
 using Backend.BLL.Interfaces;
+using Backend.Models;
 using System.Security.Claims;
 
 namespace Backend.API.Controllers;
@@ -34,11 +35,11 @@ public class AuthController(
     }
     
     public async Task<IResult> Login(LoginRequestDTO loginRequestDTO) {
-        var (userId, token) = await this.authService.Login(
+        var (_, token) = await this.authService.Login(
             loginRequestDTO.Email,
             loginRequestDTO.Password
         );
-        return Results.Created("/auth/users/" + userId, new {
+        return Results.Ok(new {
             access_token = token,
             token_type = "Bearer"
         });
@@ -53,5 +54,29 @@ public class AuthController(
 
         await this.authService.Logout(jti);
         return Results.Ok();
+    }
+
+    /**
+     * A function to get the user's information.
+     * 
+     * @param claimsPrincipal The claims principal dirived from the JWT token.
+     * @return The User.
+     */
+    public async Task<IResult> Me(ClaimsPrincipal claimsPrincipal) {
+        string? userId = claimsPrincipal.FindFirst("sub")?.Value;
+
+        if (userId == null) {
+            return Results.Unauthorized();
+        }
+
+        // Should not happen (not normal if it does so 500)
+        User? user = await this.authService.GetUserById(userId)
+            ?? throw new Exception("User not found");
+
+        return Results.Ok(new {
+            id = user.Id,
+            username = user.Username,
+            email = user.Email
+        });
     }
 }
