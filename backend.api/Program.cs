@@ -93,6 +93,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 //
+//  CORS
+//
+
+var origins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins(origins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
+//
 //  Application
 //
 
@@ -103,6 +122,12 @@ var app = builder.Build();
 //
 
 app.UseExceptionHandler();
+
+//
+//  CORS usage
+//
+
+app.UseCors("Frontend");
 
 //
 //  Auth usage
