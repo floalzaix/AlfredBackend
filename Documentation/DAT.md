@@ -92,7 +92,7 @@ business cases. Details: `AGENTS.md` (Error handling) and
 | API docs | Swagger UI (Swashbuckle) + OpenAPI | In place (dev) |
 | ORM | Entity Framework Core 10 | Configured |
 | Database | PostgreSQL (Npgsql 10.0.0) | Connection strings in appsettings |
-| Validation | DataAnnotations on DTOs and config | Partial for DTOs (see §9) |
+| Validation | DataAnnotations on DTOs and config | In place (`AddValidation`) |
 | Auth | JWT Bearer (local validation, no introspect server) | In place |
 | Dependency injection | Microsoft.Extensions.DependencyInjection | In place |
 
@@ -239,7 +239,7 @@ Swagger (dev): use the `bearer` security scheme and paste the JWT
 | HTTPS | Redirection enabled |
 | Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |
-| Input validation | DataAnnotations on DTOs; `AddValidation()` not yet called in `Program.cs` |
+| Input validation | DataAnnotations on DTOs; `AddValidation()` in `Program.cs` |
 
 ## 10. Build, run, and deploy
 
@@ -264,17 +264,15 @@ Swagger (dev): use the `bearer` security scheme and paste the JWT
 
 ## 12. Attention points
 
-1. **Validation inactive**: add `builder.Services.AddValidation()` so
-   DataAnnotations are enforced on Minimal APIs.
-2. **Path casing**: folders may be lowercase while `Backend.slnx` and project
+1. **Path casing**: folders may be lowercase while `Backend.slnx` and project
    references use `Backend.API`. Fine on Windows/macOS; fails on Linux CI.
-3. **Persistence**: no entities, repositories, or migrations yet; register
+2. **Persistence**: no entities, repositories, or migrations yet; register
    models in `Database.cs` when adding them.
-4. **Controllers**: plain classes injected into routes (not MVC controllers).
-5. **Naming**: `ExempleUser` (typo) should align on `Example`.
-6. **Swagger and OpenAPI**: both `MapOpenApi()` and Swashbuckle are enabled;
+3. **Controllers**: plain classes injected into routes (not MVC controllers).
+4. **Naming**: `ExempleUser` (typo) should align on `Example`.
+5. **Swagger and OpenAPI**: both `MapOpenApi()` and Swashbuckle are enabled;
    keep one if possible.
-7. **No tests**: no test project in the solution yet.
+6. **No tests**: no test project in the solution yet.
 
 ## 13. Technical roadmap
 

@@ -94,7 +94,8 @@ Replace `Device` with your own name in every file.
 [ ] Step 8  — Register the controller (API DI)
 [ ] Step 9  — Routes (+ RequireAuthorization when private)
 [ ] Step 10 — Map the routes in Program.cs
-[ ] Step 11 — Review expected error paths (status codes / messages)
+[ ] Step 11 — Review expected error paths + document them in Swagger
+              (.Produces / .ProducesProblem on routes)
 [ ] Step 12 — Build and test happy path + error paths
               (Bearer JWT in Swagger if protected)
 ```
@@ -424,6 +425,7 @@ are fine when ownership is clear (`/homes/{homeId}/rooms`). The Example
 ```csharp
 using Backend.API.Controllers;
 using Backend.API.DTOs;
+using Backend.Models;
 
 namespace Backend.API.Routes;
 
@@ -436,10 +438,22 @@ public static class DeviceRoutes {
             [AsParameters] GetDeviceDTO dto
         ) => {
             return controller.GetDevice(dto);
-        }).RequireAuthorization("User");
+        })
+        .RequireAuthorization("User")
+        .Produces<Device>(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status404NotFound);
     }
 }
 ```
+
+Document each **expected** status in Swagger with `.Produces` /
+`.ProducesValidationProblem` (invalid DTO → 400) /
+`.ProducesProblem` (ProblemDetails from `GlobalExceptionHandler`).
+Include `401` / `403` when the route uses `.RequireAuthorization(...)`.
+`AddValidation()` is already registered in `Program.cs`.
 
 **Auth (JWT Bearer):** protected routes need
 `.RequireAuthorization("User")` or `"Admin"`. The client sends
@@ -489,19 +503,23 @@ new feature (and register the new types in each layer’s
 ## Step 11 — Review expected error paths
 
 Before testing, write down the failure cases for your feature and check
-that the service throws the right `AppException` subtype.
+that the service throws the right `AppException` subtype. Then document
+those statuses on the route with `.Produces` / `.ProducesProblem` so
+Swagger shows them.
 
 Examples:
 
 - Get missing id → `NotFoundException` → client sees **404** ProblemDetails
 - Create duplicate → `ConflictException` → **409**
 - Bad login → `UnauthorizedException` → **401** (generic message)
+- Protected route without / with revoked token → **401** / **403**
 
 Reference files:
 
 - `Backend.Models/Exceptions/AppException.cs`
 - `Backend.API/GlobalExceptionHandler.cs`
 - `Backend.BLL/Services/AuthService.cs` (login credentials)
+- `Backend.API/Routes/AuthRoutes.cs` (Swagger `.ProducesProblem` examples)
 
 You should **not** add a new exception handler per feature. Reuse the
 global one. Only add a new exception **type** if none of the existing
@@ -532,7 +550,7 @@ If something fails, check these common mistakes first:
 | `Unable to resolve service for type '…'` | Missing line in a `DependencyInjection.cs` |
 | `Body was inferred but the method does not allow…` | Missing `[AsParameters]` on a GET DTO |
 | Project / namespace errors | Wrong folder or forgotten `using` |
-| Validation never rejects bad input | `AddValidation()` not registered in `Program.cs` |
+| Validation never rejects bad input | `AddValidation()` missing in `Program.cs` (already present in this project) |
 | `401 Unauthorized` | Missing / expired Bearer token, or route not authorized |
 | `403 Forbidden` | Valid token but wrong role for the policy |
 | Expected business error returns `500` | Threw bare `Exception` instead of an `AppException` subtype |

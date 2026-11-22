@@ -30,6 +30,7 @@
 
 using Backend.API.Controllers;
 using Backend.API.DTOs;
+using Backend.Models;
 
 namespace Backend.API.Routes;
 
@@ -67,6 +68,11 @@ public static class ExampleRoutes {
             [AsParameters] GetHelloWorldDTO hw
         ) => {
             return controller.GetHelloWorld(hw);
-        }).RequireAuthorization("User");
+        })
+        .RequireAuthorization("User")
+        .Produces<ExempleUser>(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden);
     }
 }

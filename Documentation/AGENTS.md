@@ -227,6 +227,7 @@ Feature: <Name>
 [ ] 13. Routes in Backend.API/Routes + Map* in Program.cs
 [ ] 14. RequireAuthorization on private routes (User / Admin)
 [ ] 15. Expected errors covered (AppException / existing subtypes)
+       + documented on routes with .Produces / .ProducesProblem
 [ ] 16. Build and smoke-test happy path + error paths
        (Bearer token in Swagger when protected)
 ```
@@ -289,6 +290,10 @@ Feature: <Name>
 - Call `app.Map<Feature>Routes();` from `Program.cs`
 - Protect private endpoints with `.RequireAuthorization("User")` or
   `"Admin"` (JWT Bearer — see Authentication section above)
+- Document expected responses for Swagger: `.Produces` for success,
+  `.ProducesValidationProblem()` when the route binds a validated DTO,
+  `.ProducesProblem` for each expected error status (`AppException`
+  subtypes + `401`/`403` on protected routes)
 
 **REST naming (required for real features):**
 

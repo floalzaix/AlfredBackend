@@ -40,20 +40,30 @@ public static class AuthRoutes {
         ) => {
             await authController.Register(registerRequestDTO);
             return Results.Ok();
-        });
+        })
+        .Produces(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status409Conflict);
 
         authRouter.MapPost("/login", async(
             AuthController authController,
             LoginRequestDTO loginRequestDTO
         ) => {
             return await authController.Login(loginRequestDTO);
-        });
+        })
+        .Produces(StatusCodes.Status201Created)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         authRouter.MapPost("/logout", async(
             AuthController authController,
             ClaimsPrincipal claimsPrincipal
         ) => {
             return await authController.Logout(claimsPrincipal);
-        }).RequireAuthorization("User");
+        })
+        .RequireAuthorization("User")
+        .Produces(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden);
     }
 }

@@ -54,6 +54,14 @@ public class AuthService(
         string email,
         string password
     ) {
+        User? existingUser = await this.userRepository.GetUserByEmail(
+            email
+        );
+
+        if (existingUser is not null) {
+            throw new ConflictException("Email already in use.");
+        }
+
         var user = new User {
             Username = username,
             Email = email,
