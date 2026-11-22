@@ -61,8 +61,8 @@ public class GlobalExceptionHandler(
         await httpContext.Response.WriteAsJsonAsync(
             new ProblemDetails {
                 Status = StatusCodes.Status500InternalServerError,
-                Title = "An unexpected error occurred.",
-                Detail = "Please try again later.",
+                Title = "Une erreur inattendue s'est produite.",
+                Detail = "Veuillez réessayer plus tard.",
                 Instance = httpContext.Request.Path
             },
             cancellationToken

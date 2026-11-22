@@ -59,7 +59,7 @@ public class AuthService(
         );
 
         if (existingUser is not null) {
-            throw new ConflictException("Email already in use.");
+            throw new ConflictException("Email déjà utilisé.");
         }
 
         var user = new User {
@@ -85,7 +85,7 @@ public class AuthService(
             ) == PasswordVerificationResult.Success;
 
         if (!isPasswordValid) {
-            throw new UnauthorizedException("Invalid credentials.");
+            throw new UnauthorizedException("Mot de passe invalide.");
         }
 
         return (user!.Id, await this.generateToken(user));
@@ -110,6 +110,10 @@ public class AuthService(
                 new Claim("role", user.Role),
                 new Claim(JwtRegisteredClaimNames.Jti, jti),
             ],
+            // We could created a refresh token system
+            // to avoid the user to login again and again every hour.
+            // But for the sake of simplicity for this project, we will
+            // just use a JWT token that expires every hour.
             expires: expiresAt,
             signingCredentials: new SigningCredentials(
                 key,

@@ -71,7 +71,7 @@ public class AuthController(
 
         // Should not happen (not normal if it does so 500)
         User? user = await this.authService.GetUserById(userId)
-            ?? throw new Exception("User not found");
+            ?? throw new Exception("Utilisateur introuvable.");
 
         return Results.Ok(new {
             id = user.Id,

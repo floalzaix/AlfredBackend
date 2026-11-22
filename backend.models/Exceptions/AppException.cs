@@ -37,8 +37,8 @@ public class AppException : Exception {
 
 public class UnauthorizedException : AppException {
     public UnauthorizedException(
-        string message = "Unauthorized."
-    ) : base(message, 401, "Unauthorized") {
+        string message = "Non autorisé."
+    ) : base(message, 401, "Non autorisé") {
     }
 }
 
@@ -48,8 +48,8 @@ public class UnauthorizedException : AppException {
 
 public class NotFoundException : AppException {
     public NotFoundException(
-        string message = "Resource not found."
-    ) : base(message, 404, "Not Found") {
+        string message = "Ressource introuvable."
+    ) : base(message, 404, "Introuvable") {
     }
 }
 
@@ -59,7 +59,7 @@ public class NotFoundException : AppException {
 
 public class ConflictException : AppException {
     public ConflictException(
-        string message = "Conflict."
-    ) : base(message, 409, "Conflict") {
+        string message = "Conflit."
+    ) : base(message, 409, "Conflit") {
     }
 }

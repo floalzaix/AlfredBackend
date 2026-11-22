@@ -29,7 +29,7 @@ namespace Backend.API.DTOs;
 
 public sealed class GetHelloWorldDTO {
     [FromQuery]
-    [Required(ErrorMessage = "The name is needed !")]
-    [MinLength(1, ErrorMessage = "The name must not be empty !")]
+    [Required(ErrorMessage = "Le nom est requis !")]
+    [MinLength(1, ErrorMessage = "Le nom ne doit pas être vide !")]
     public string Name { get; init; } = string.Empty;
 }
