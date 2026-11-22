@@ -26,12 +26,18 @@ public class AuthController(
     //  Methods
     //
 
-    public async Task Register(RegisterRequestDTO registerRequestDTO) {
-        await this.authService.Register(
+    public async Task<IResult> Register(RegisterRequestDTO registerRequestDTO) {
+        // Return the jwt token for the user to use it directly.
+        string token = await this.authService.Register(
             registerRequestDTO.Username,
             registerRequestDTO.Email,
             registerRequestDTO.Password
         );
+
+        return Results.Ok(new {
+            access_token = token,
+            token_type = "Bearer"
+        });
     }
     
     public async Task<IResult> Login(LoginRequestDTO loginRequestDTO) {

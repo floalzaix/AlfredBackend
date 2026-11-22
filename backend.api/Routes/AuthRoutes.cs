@@ -38,8 +38,7 @@ public static class AuthRoutes {
             AuthController authController,
             RegisterRequestDTO registerRequestDTO
         ) => {
-            await authController.Register(registerRequestDTO);
-            return Results.Ok();
+            return await authController.Register(registerRequestDTO);
         })
         .Produces(StatusCodes.Status200OK)
         .ProducesValidationProblem()

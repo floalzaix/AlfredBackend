@@ -49,7 +49,7 @@ public class AuthService(
     //  Methods
     //
 
-    public async Task Register(
+    public async Task<string> Register(
         string username,
         string email,
         string password
@@ -72,6 +72,8 @@ public class AuthService(
         user.PasswordHash = passwordHasher.HashPassword(user, password);
 
         await this.userRepository.CreateUser(user);
+
+        return await this.generateToken(user);
     }
 
     public async Task<(Guid, string)> Login(string email, string password) {
