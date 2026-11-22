@@ -69,10 +69,21 @@ dotnet user-secrets set "JwtConfig:Key" "<base64-signing-key>"
 Set the JWT signing key used by token generation and local validation.
 There is no external verification server: put
 `Authorization: Bearer <access_token>` on protected requests.
+API path base: `/api` (example login: `POST /api/auth/login`).
+Register also returns `{ access_token, token_type }`.
+Current user: `GET /api/auth/me` (requires Bearer).
 Token lifetime: `JwtConfig.ExpirationTime` minutes (see appsettings).
-Logout: `POST /auth/logout` with the same Bearer token (revokes `jti`).
+Logout: `POST /api/auth/logout` with the same Bearer token (revokes `jti`).
 The token-cleanup daemon starts automatically with
 `dotnet run --project backend.api` (no extra command).
+
+
+## CORS
+
+Allowed origins live under `Cors:AllowedOrigins` in
+`backend.api/appsettings*.json`. Development expects the Angular
+app at `http://localhost:8080`. Update that list if the SPA port
+changes.
 
 
 ## DOTNET
@@ -90,7 +101,8 @@ Compile the solution to check for errors.
 ```
 dotnet run --project backend.api
 ```
-Run the API locally.
+Run the API locally on `http://localhost:5050`
+(routes under `/api`, Swagger in Development).
 
 ```
 cd backend.api

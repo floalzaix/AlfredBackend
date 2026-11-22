@@ -16,11 +16,28 @@
 - Voice assistant (bonus)
 - Device simulators to test before buying (bonus)
 - Smart notifications
-- Responsive design
+- Responsive design (Angular frontend)
 
 ---
 
 ## Technical guide
+
+### Repositories
+
+| Repo | Role |
+| --- | --- |
+| This repo (`backend`) | .NET 10 REST API (`/api`) |
+| Sibling `frontend/` | Angular 22 SPA (PrimeNG, Zod) |
+
+Full architecture (backend + frontend): `Documentation/DAT.md`.
+
+### Local ports
+
+| Service | URL / port |
+| --- | --- |
+| API | `http://localhost:5050` (path base `/api`) |
+| Frontend | `http://localhost:8080` |
+| PostgreSQL (Docker) | `localhost:4040` |
 
 ### Authentication (JWT Bearer)
 
@@ -29,12 +46,14 @@ server**: the API issues the token and validates it locally. Active
 tokens are also tracked in the database (`UserToken` / JWT `jti`) so
 logout can revoke them before expiry.
 
-1. Register: `POST /auth/register`
-2. Login: `POST /auth/login` → `{ "access_token": "<jwt>", "token_type": "Bearer" }`
+1. Register: `POST /api/auth/register` →
+   `{ "access_token": "<jwt>", "token_type": "Bearer" }`
+2. Login: `POST /api/auth/login` → same token response
 3. Call protected routes with:
    `Authorization: Bearer <access_token>`
-4. Logout: `POST /auth/logout` (requires `User`) — revokes the current
-   token by removing its `jti` from the database
+4. Current user: `GET /api/auth/me` (requires `User`)
+5. Logout: `POST /api/auth/logout` (requires `User`) — revokes the
+   current token by removing its `jti` from the database
 
 The token expires after `JwtConfig.ExpirationTime` minutes
 (default `60`). After expiry or logout, log in again.
@@ -47,22 +66,34 @@ Protect a route with `.RequireAuthorization("User")` or
 in `appsettings*.json`; the signing `Key` comes from user-secrets /
 environment variables. More detail: `Documentation/DAT.md` §9.
 
+### CORS
+
+Policy `Frontend` reads `Cors:AllowedOrigins`. Development allows
+`http://localhost:8080` so the Angular app can call the API
+cross-origin. Keep that list in sync with the SPA port.
+
+### Errors
+
+Expected failures use `AppException` subtypes → ProblemDetails via
+`GlobalExceptionHandler`. **User-facing** validation and error
+messages are in **French**; code and docs stay in English.
+
 ### Naming convention
 
 | Kind | Convention | Example |
 | --- | --- | --- |
-| Types, public members, files, folders, projects, namespaces | PascalCase | `EquipeService`, `MonApp.Bll.Services` |
-| Interfaces, async methods, booleans | `I` prefix / `Async` suffix / `Is`·`Has`·`Can` | `IEquipeService`, `ObtenirEquipeAsync()`, `IsActive` |
-| Parameters and local variables | camelCase | `equipeId`, `nombreEquipes` |
-| Private fields | `_camelCase` | `_equipeRepository` |
+| Types, public members, files, folders, projects, namespaces | PascalCase | `DeviceService`, `Backend.BLL.Services` |
+| Interfaces, async methods, booleans | `I` prefix / `Async` suffix / `Is`·`Has`·`Can` | `IDeviceService`, `GetDeviceAsync()`, `IsActive` |
+| Parameters and local variables | camelCase | `deviceId` |
+| Private fields | `_camelCase` | `_deviceRepository` |
 
 ### Dev database (Docker)
 
-`Backend.DAL/Dockerfile` runs a **local PostgreSQL** for development
+`backend.dal/Dockerfile` runs a **local PostgreSQL** for development
 (credentials are intentionally simple and tracked — **dev only**).
 
 ```bash
-cd Backend.DAL
+cd backend.dal
 docker build -t alfred-db .
 docker run -d --name alfred-db -p 4040:4040 alfred-db
 ```
@@ -75,10 +106,21 @@ Data persists across `stop` / `start` of the same container via the
 | Host | `localhost` |
 | Port | `4040` |
 | Database | `alfred_db` |
-| Username / Password | see `Backend.DAL/Dockerfile` |
+| Username / Password | see `backend.dal/Dockerfile` |
 
-Connection string: `Backend.API/appsettings.Development.json` (`DALConfig`).
-More commands: `Documentation/commands.md`.
+Connection string: `backend.api/appsettings.Development.json` (`DALConfig`).
+Persisted entities today: `User`, `UserToken` (EF migrations in
+`backend.dal/Migrations`). More commands: `Documentation/commands.md`.
+
+### Run the API
+
+```bash
+dotnet restore
+dotnet build
+dotnet run --project backend.api
+```
+
+Swagger (Development): open the app on port `5050` under `/api`.
 
 ---
 
@@ -87,3 +129,15 @@ More commands: `Documentation/commands.md`.
 - .NET 10 or newer
 - C# 14 or newer
 - Docker (dev database)
+- For the SPA: Node.js / npm (see `frontend/README.md`)
+
+## Documentation
+
+| Document | Purpose |
+| --- | --- |
+| `Documentation/DAT.md` | Technical architecture (backend + frontend) |
+| `Documentation/AGENTS.md` | Conventions for AI / contributors |
+| `Documentation/HOW_TO_ADD_A_FEATURE.md` | Step-by-step feature guide |
+| `Documentation/commands.md` | Git, Docker, JWT secrets, dotnet, EF |
+| `Documentation/Dependencies.md` | Layer dependency diagram |
+| `Documentation/TO_LEARN.md` | Learning checklist |

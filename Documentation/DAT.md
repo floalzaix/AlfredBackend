@@ -1,12 +1,14 @@
-# DAT – Alfred Backend
+# DAT – Alfred
 
 ## 1. Context and goals
 
 Alfred is a connected-home manager (SI & Infra project). It aims to make
 home-automation ecosystems easier to use and more customizable by
-centralizing devices, rooms, and households behind a single API.
+centralizing devices, rooms, and households behind a single API and a
+responsive web client.
 
-This backend exposes the API consumed by the client(s) (responsive web).
+- **Backend** (this repository): REST API consumed by the frontend
+- **Frontend** (sibling repo `frontend/`): Angular SPA
 
 ## 2. Target functional scope
 
@@ -21,9 +23,12 @@ This backend exposes the API consumed by the client(s) (responsive web).
 
 **Expected domain entities** (to confirm): User, Home, Room, Device, Scene.
 
+**Implemented today:** User auth (register / login / logout / me), JWT
+revocation, Example demo route, Angular auth UI (login / register).
+
 ## 3. Architecture principles
 
-- **N-tier** architecture in 4 projects, with strictly downward dependencies
+- **N-tier** backend in 4 projects, with strictly downward dependencies
 - Shared domain models across layers (no per-layer duplication)
 - Dependencies through **interfaces**, injected (testability)
 - Each layer declares its own DI registrations
@@ -31,13 +36,16 @@ This backend exposes the API consumed by the client(s) (responsive web).
 - **REST** resource naming for feature routes
 - **Centralized error handling**: expected failures via `AppException`
   subtypes; unexpected failures → 500 ProblemDetails
+- Frontend: feature folders + thin routable pages; HTTP via a shared
+  client and interceptors
 
-## 4. Application architecture
+## 4. Backend application architecture
 
 ```
-HTTP request
+HTTP request (/api/…)
    ↓
-Backend.API     Routes → Controllers → DTOs (+ GlobalExceptionHandler)
+Backend.API     Routes → Controllers → DTOs
+                (+ GlobalExceptionHandler, CORS, JWT, PathBase)
    ↓
 Backend.BLL     Interfaces → Services (throw AppException when expected)
    ↓
@@ -48,9 +56,9 @@ Backend.Models  Domain models + Exceptions
 
 | Project | Role | Contents |
 | --- | --- | --- |
-| Backend.API | HTTP entry point | Routes, Controllers, DTOs, `GlobalExceptionHandler`, API DI |
+| Backend.API | HTTP entry point | Routes, Controllers, DTOs, `GlobalExceptionHandler`, JWT wiring, CORS, `TokenCleanupBackgroundService`, API DI |
 | Backend.BLL | Business logic | Interfaces, Services, BLL DI |
-| Backend.DAL | Persistence | Repositories, `AppDbContext`, `DALConfig`, DAL DI |
+| Backend.DAL | Persistence | Repositories, `AppDbContext`, migrations, `DALConfig`, DAL DI |
 | Backend.Models | Shared models | POCOs without logic, `Exceptions/` |
 
 **Dependency rules**
@@ -83,17 +91,25 @@ prefer `null` / empty results. Do not throw bare `Exception` for
 business cases. Details: `AGENTS.md` (Error handling) and
 `HOW_TO_ADD_A_FEATURE.md`.
 
-## 5. Technical stack
+**User-facing messages (French):** validation errors, `AppException`
+messages/titles, and the generic 500 ProblemDetails text shown to
+clients are in **French** (frontend display). Code, comments, docs,
+and commit messages stay in **English**.
+
+## 5. Backend technical stack
 
 | Area | Choice | Status |
 | --- | --- | --- |
 | Runtime / language | .NET 10, C# 14 | In place |
 | API | ASP.NET Core Minimal APIs | In place |
+| API base path | `UsePathBase("/api")` | In place |
 | API docs | Swagger UI (Swashbuckle) + OpenAPI | In place (dev) |
-| ORM | Entity Framework Core 10 | Configured |
+| ORM | Entity Framework Core 10 | In place |
 | Database | PostgreSQL (Npgsql 10.0.0) | Connection strings in appsettings |
+| Migrations | EF Core under `Backend.DAL/Migrations` | Users + UserTokens |
 | Validation | DataAnnotations on DTOs and config | In place (`AddValidation`) |
 | Auth | JWT Bearer (local validation, no introspect server) | In place |
+| CORS | Policy `Frontend` from `Cors:AllowedOrigins` | In place |
 | Dependency injection | Microsoft.Extensions.DependencyInjection | In place |
 
 ## 6. Dependency injection and typed configuration
@@ -129,12 +145,22 @@ Reference: `Backend.DAL/DALConfig.cs`.
 - To **persist** a model: create it in `Backend.Models`, then declare
   `DbSet<>` (and optional constraints in `OnModelCreating`) in `Database.cs`
 - Without that registration, EF will not create/update a table for the model
-- No repositories or migrations yet
-- EF Core migrations are driven from `Backend.API` (startup) toward `Backend.DAL`
+- EF Core migrations live in `Backend.DAL/Migrations` and are applied from
+  `Backend.API` as startup project
 - Connection strings live under `DALConfig` (no secrets hardcoded in code)
 - **Dev database**: `Backend.DAL/Dockerfile` (PostgreSQL, port `4040`,
   database `alfred_db`). Commands in `commands.md` / `README.md`.
   Dev-only credentials; do not use that image in production.
+
+### Persisted entities (current)
+
+| Entity | Purpose |
+| --- | --- |
+| `User` | Account (username, email, password hash, role) |
+| `UserToken` | Active JWT `jti` + expiry (logout / revocation) |
+
+Repository: `IAuthRepo` / `AuthRepo` (create user, lookup by email/id,
+create/delete/check tokens, cleanup expired tokens).
 
 | File | Connection string purpose |
 | --- | --- |
@@ -148,8 +174,10 @@ Reference: `Backend.DAL/DALConfig.cs`.
 }
 ```
 
-## 8. API interface
+## 8. Backend API interface
 
+- Global path base: **`/api`** (`app.UsePathBase("/api")` in `Program.cs`)
+- Effective URLs look like `http://localhost:5050/api/auth/login`
 - Each feature exposes a route group (`MapGroup("/<feature>")`) as an
   extension method `Map<Feature>Routes()`
 - Feature routes must use **REST** names: resource nouns (usually plural)
@@ -157,31 +185,36 @@ Reference: `Backend.DAL/DALConfig.cs`.
   Avoid verb paths (`/getDevices`). Nested resources are fine when ownership
   is clear (`/homes/{id}/rooms`)
 - Request DTOs are dedicated and `sealed`; GET DTOs use `[AsParameters]`
-- Reference feature: `Example` (demo path `/hello_world` is not REST)
+- Document expected statuses with `.Produces` / `.ProducesValidationProblem`
+  / `.ProducesProblem` for Swagger
+- Reference demo feature: `Example` (path `/example/hello_world` is not REST)
 
-| Method | Route | Auth | Description |
+| Method | Route (after `/api`) | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/auth/register` | Public | Create a user (username, email, password) |
+| POST | `/auth/register` | Public | Create a user; **returns** `{ access_token, token_type }` |
 | POST | `/auth/login` | Public | Validate credentials; return a Bearer JWT |
 | POST | `/auth/logout` | `User` policy | Revoke the current JWT (`jti` removed from DB) |
+| GET | `/auth/me` | `User` policy | Current user (`id`, `username`, `email`) |
 | GET | `/example/hello_world?name=` | `User` policy | Returns an `ExempleUser` (Id + Name) |
 
-- Local URLs: `http://localhost:5230`, `https://localhost:7247`
+- Local API URL: **`http://localhost:5050`** (see `launchSettings.json`)
 - Swagger UI available only in the Development environment
+  (typically under the `/api` path base)
 
 ## 9. Security
 
 ### Authentication (JWT Bearer)
 
 Auth is **JWT Bearer**. There is **no external token verification /
-introspection server**. The API issues the JWT on login and validates
-it locally on each protected request. Revocation uses persisted token
-ids (`jti` in `UserToken`).
+introspection server**. The API issues the JWT on login **or register**
+and validates it locally on each protected request. Revocation uses
+persisted token ids (`jti` in `UserToken`).
 
 **Flow**
 
-1. `POST /auth/register` — create an account
-2. `POST /auth/login` — get `{ access_token, token_type: "Bearer" }`;
+1. `POST /api/auth/register` — create an account and receive
+   `{ access_token, token_type: "Bearer" }` (same shape as login)
+2. `POST /api/auth/login` — get `{ access_token, token_type: "Bearer" }`;
    the JWT `jti` is stored in `UserToken`
 3. Call protected routes with header:
    `Authorization: Bearer <access_token>`
@@ -189,7 +222,8 @@ ids (`jti` in `UserToken`).
    audience, and expiration locally (no remote auth server)
 5. Authorization also checks that the `jti` is still active
    (`ActiveJtiHandler`) so logged-out tokens are rejected
-6. `POST /auth/logout` (policy `User`) — deletes the current `jti`
+6. `GET /api/auth/me` (policy `User`) — return the authenticated user
+7. `POST /api/auth/logout` (policy `User`) — deletes the current `jti`
    from the database (token revoked before natural expiry)
 
 **Token**
@@ -230,56 +264,175 @@ env for `Key`):
 Swagger (dev): use the `bearer` security scheme and paste the JWT
 (without the `Bearer` prefix).
 
+### CORS
+
+Policy name: **`Frontend`**. Origins come from configuration:
+
+```json
+"Cors": {
+  "AllowedOrigins": [
+    "http://localhost:8080"
+  ]
+}
+```
+
+- Development: `http://localhost:8080` (Angular `ng serve` port)
+- Production placeholder may include `https://<nom hote>`
+- Pipeline: `UseCors("Frontend")` before auth middleware
+- Allows any header and any method for listed origins
+- The SPA calls the API **cross-origin** (no frontend proxy)
+
 | Topic | State |
 | --- | --- |
 | Authentication / role authorization | Implemented (JWT Bearer + `User` / `Admin` policies) |
+| Register returns JWT | Implemented |
+| Current user (`GET /auth/me`) | Implemented |
 | Logout / JWT revocation (`jti` + `UserToken`) | Implemented |
 | Expired-token cleanup daemon | Implemented (`TokenCleanupBackgroundService`) |
+| CORS for frontend | Implemented (`Cors:AllowedOrigins`) |
 | Global error handling | Implemented (`AppException` + `GlobalExceptionHandler` + ProblemDetails) |
 | HTTPS | Redirection enabled |
 | Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |
 | Input validation | DataAnnotations on DTOs; `AddValidation()` in `Program.cs` |
 
-## 10. Build, run, and deploy
+## 10. Frontend technical architecture
 
-- Tools: `dotnet restore`, `dotnet build`, `dotnet run --project Backend.API`,
-  `dotnet watch`
-- Dev database: Docker image from `Backend.DAL/Dockerfile`
+Sibling repository: `../frontend` (`alfred-frontend`).
+
+### Stack
+
+| Area | Choice |
+| --- | --- |
+| Framework | Angular **22** (standalone, `bootstrapApplication`) |
+| Language | TypeScript (~ES2022) |
+| Build / CLI | Angular CLI / `@angular/build` |
+| UI | PrimeNG 22 + Aura theme (`@primeuix/themes`), PrimeIcons |
+| Forms | Reactive Forms (Signal Forms preferred for new work) |
+| State | Angular **signals** (no NgRx) |
+| Routing | `@angular/router` + functional guards |
+| HTTP | `@angular/common/http` via custom `AsyncHttpClient` |
+| Validation | **Zod** schemas on API DTOs / models |
+| Auth storage | JWT in `localStorage` key `access_token` |
+
+### Structure
+
+```
+frontend/src/app/
+  core/                 Guards, interceptors, shared models, AsyncHttpClient
+  features/<name>/      Feature service, DTOs/Zod, feature components
+  shared/
+    pages/<name>/       Routable page shells (composition only)
+    components/         Reusable UI
+  app.routes.ts
+  app.config.ts
+```
+
+**Rules**
+
+- Routes target **`shared/pages/*` only** (never feature components)
+- Pages compose feature / shared components; no HTTP in pages
+- Features own services, Zod DTOs, and domain UI
+- `core/` holds cross-cutting infrastructure
+
+### Backend integration
+
+| Item | Value |
+| --- | --- |
+| Dev API base URL | `http://localhost:5050/api` (`environment.development.ts`) |
+| Prod API base URL | Placeholder in `environment.ts` |
+| Auth header | `Authorization: Bearer <token>` via `tokenInterceptor` |
+| Dev frontend URL | `http://localhost:8080` (`angular.json` serve port) |
+
+**Endpoints used by the SPA today**
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/auth/login` | Login; store `access_token` |
+| POST | `/auth/register` | Register; store `access_token` |
+| GET | `/auth/me` | Current user (`authGuard` / `AuthService.getUser`) |
+
+HTTP errors are mapped to `ApiError` / `ValidationError` and shown with
+PrimeNG Toast (French copy). Pipeline: `tokenInterceptor` →
+`errorInterceptor`.
+
+### Routes (current)
+
+| Path | Page | Guard | Notes |
+| --- | --- | --- | --- |
+| `auth` | `AuthPage` | None | Login / register UI |
+| `**` | redirect → `auth` | — | Default entry |
+
+`authGuard` exists but is not wired on a private page yet. Logout UI
+against `POST /auth/logout` is not implemented in the SPA yet.
+
+### Environments and scripts
+
+- No `.env` files: Angular **file replacements** for development
+- Scripts: `npm start` (`ng serve` on **8080**), `npm run build`,
+  `npm run watch`, `npm test`
+- More detail: frontend `AGENTS.md` and `documentation/HOW_TO_ADD_A_FEATURE.md`
+
+### End-to-end local layout
+
+```
+Browser  http://localhost:8080
+    ↓  CORS + Bearer JWT
+API      http://localhost:5050/api/…
+    ↓
+PostgreSQL  localhost:4040  (Docker alfred-db)
+```
+
+## 11. Build, run, and deploy
+
+**Backend**
+
+- Tools: `dotnet restore`, `dotnet build`,
+  `dotnet run --project backend.api`, `dotnet watch`
+- Dev database: Docker image from `backend.dal/Dockerfile`
   (`docker build` / `docker run` — see `commands.md`)
 - Editor: VS Code (`launch.json` and `tasks.json` provided)
-- API/app containerization, CI/CD, and hosting strategy not defined yet
 
-## 11. Conventions
+**Frontend**
+
+- `npm install` then `npm start` (port **8080**)
+- Requires API + CORS origin `http://localhost:8080`
+
+API/app containerization, CI/CD, and hosting strategy not defined yet.
+
+## 12. Conventions
 
 - PascalCase (types, files, namespaces), camelCase (variables),
   `_camelCase` (private fields)
 - `I` prefix for interfaces, `Async` suffix for async methods,
   `Is`/`Has`/`Can` for booleans
-- Primary constructors preferred; project content (code, docs, messages)
-  in English
-- Adding a feature: follow the `Example*` template layer by layer
-  (checklist in `AGENTS.md` and `HOW_TO_ADD_A_FEATURE.md`), including
-  expected `AppException` error paths
+- Primary constructors preferred
+- Project content (code, comments, docs, commits) in **English**
+- **Exception:** user-facing error / validation messages in **French**
+- Adding a feature: follow the `Example*` / `Auth*` template layer by layer
+  (checklist in `AGENTS.md` and `HOW_TO_ADD_A_FEATURE.md`)
 
-## 12. Attention points
+## 13. Attention points
 
-1. **Path casing**: folders may be lowercase while `Backend.slnx` and project
-   references use `Backend.API`. Fine on Windows/macOS; fails on Linux CI.
-2. **Persistence**: no entities, repositories, or migrations yet; register
-   models in `Database.cs` when adding them.
-3. **Controllers**: plain classes injected into routes (not MVC controllers).
-4. **Naming**: `ExempleUser` (typo) should align on `Example`.
-5. **Swagger and OpenAPI**: both `MapOpenApi()` and Swashbuckle are enabled;
+1. **Path casing**: solution / csproj paths use lowercase
+   (`backend.api`, …). Fine on Windows/macOS; keep consistent for Linux CI.
+2. **Path base**: all API URLs include `/api`; do not omit it from clients.
+3. **Ports**: API `5050`, frontend `8080`, PostgreSQL `4040` — keep CORS
+   and `environment.development.ts` aligned.
+4. **Controllers**: plain classes injected into routes (not MVC controllers).
+5. **Naming**: `ExempleUser` (typo) should align on `Example`.
+6. **Swagger and OpenAPI**: both `MapOpenApi()` and Swashbuckle are enabled;
    keep one if possible.
-6. **No tests**: no test project in the solution yet.
+7. **No automated tests** yet (backend or frontend).
+8. **Frontend gaps**: no post-auth pages, logout UI, or `authGuard` on
+   private routes yet.
 
-## 13. Technical roadmap
+## 14. Technical roadmap
 
-1. Persistence: entities, repositories, first migration
+1. Frontend: protected pages, logout, wire `authGuard`
 2. Extend roles beyond current `User` / `Admin` policies
    (`home_manager`, `admin_reader`, …)
-3. Core features: Home, Room, Device
+3. Core features: Home, Room, Device (API + SPA)
 4. Matter / ZigBee protocol integration (gateway or adapters)
 5. LED scenes and notifications
 6. Tests, CI/CD, and API/app containerization (DB Docker already exists for dev)

@@ -212,8 +212,8 @@ When the model is ready, create and apply a migration
 (see `commands.md`):
 
 ```bash
-dotnet ef migrations add AddDevice --project Backend.DAL --startup-project Backend.API
-dotnet ef database update --project Backend.DAL --startup-project Backend.API
+dotnet ef migrations add AddDevice --project backend.dal --startup-project backend.api
+dotnet ef database update --project backend.dal --startup-project backend.api
 ```
 
 ---
@@ -266,7 +266,7 @@ public class DeviceService(
         Device? device = await _deviceRepository.GetByIdAsync(id);
 
         if (device is null) {
-            throw new NotFoundException("Device not found.");
+            throw new NotFoundException("Appareil introuvable.");
         }
 
         return device;
@@ -279,13 +279,14 @@ call it from your methods.
 
 **Expected errors:** list what can go wrong for the user (not found,
 duplicate name, bad credentials, …). For each case, throw an
-`AppException` subtype from `Backend.Models.Exceptions`:
+`AppException` subtype from `Backend.Models.Exceptions` with a
+**French** message (shown in the frontend):
 
-| Exception | HTTP status | Example |
+| Exception | HTTP status | Example message |
 | --- | --- | --- |
-| `UnauthorizedException` | 401 | Invalid credentials |
-| `NotFoundException` | 404 | Device / home missing |
-| `ConflictException` | 409 | Duplicate email / name |
+| `UnauthorizedException` | 401 | `"Mot de passe invalide."` |
+| `NotFoundException` | 404 | `"Appareil introuvable."` |
+| `ConflictException` | 409 | `"Email déjà utilisé."` |
 
 You do **not** catch these in the controller. They bubble up to
 `GlobalExceptionHandler`, which returns ProblemDetails JSON.
@@ -331,8 +332,8 @@ namespace Backend.API.DTOs;
 
 public sealed class GetDeviceDTO {
     [FromQuery]
-    [Required(ErrorMessage = "The name is needed !")]
-    [MinLength(1, ErrorMessage = "The name must not be empty !")]
+    [Required(ErrorMessage = "Le nom est requis.")]
+    [MinLength(1, ErrorMessage = "Le nom ne doit pas être vide.")]
     public string Name { get; init; } = string.Empty;
 }
 ```
@@ -457,12 +458,14 @@ Include `401` / `403` when the route uses `.RequireAuthorization(...)`.
 
 **Auth (JWT Bearer):** protected routes need
 `.RequireAuthorization("User")` or `"Admin"`. The client sends
-`Authorization: Bearer <access_token>` (token from `POST /auth/login`).
-There is **no external verification server** — the API validates the
-JWT locally and checks that the `jti` is still active (logout revokes
-it via `POST /auth/logout`). Token lifetime:
-`JwtConfig.ExpirationTime` minutes. Expired `UserToken` rows are
-cleaned by `TokenCleanupBackgroundService`. See `DAT.md` §9 /
+`Authorization: Bearer <access_token>` (token from
+`POST /api/auth/login` or `POST /api/auth/register`). There is
+**no external verification server** — the API validates the JWT
+locally and checks that the `jti` is still active (logout revokes
+it via `POST /api/auth/logout`). Current user: `GET /api/auth/me`.
+Token lifetime: `JwtConfig.ExpirationTime` minutes. Expired
+`UserToken` rows are cleaned by `TokenCleanupBackgroundService`.
+CORS allows the SPA at `http://localhost:8080`. See `DAT.md` §9 /
 `AGENTS.md` (Authentication).
 
 Important binding rule:
@@ -511,7 +514,7 @@ Examples:
 
 - Get missing id → `NotFoundException` → client sees **404** ProblemDetails
 - Create duplicate → `ConflictException` → **409**
-- Bad login → `UnauthorizedException` → **401** (generic message)
+- Bad login → `UnauthorizedException` → **401** (French message)
 - Protected route without / with revoked token → **401** / **403**
 
 Reference files:
@@ -531,14 +534,15 @@ subtypes fit.
 
 ```bash
 dotnet build
-dotnet run --project Backend.API
+dotnet run --project backend.api
 ```
 
-Then open Swagger (development) and try your new route.
+API listens on `http://localhost:5050` with path base `/api`.
+Open Swagger (development) and try your new route under `/api/...`.
 
-If the route is protected: call `POST /auth/login`, copy `access_token`,
-authorize in Swagger with the `bearer` scheme (paste the JWT **without**
-the `Bearer` prefix), then call your route.
+If the route is protected: call `POST /api/auth/login` (or register),
+copy `access_token`, authorize in Swagger with the `bearer` scheme
+(paste the JWT **without** the `Bearer` prefix), then call your route.
 
 Also test at least one **error path** (wrong id, bad body, …) and check
 that the status code is not a blind 500 when the failure was expected.
@@ -623,8 +627,7 @@ The JSON section name must match the string passed to `BindConfiguration`.
 7. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
 8. Throw `AppException` subtypes for expected errors (not bare `Exception`)
 9. Keep each file focused on its job
-10. Write code and comments in **English**
+10. Write code and comments in **English**; user-facing errors in **French**
 
 If you are stuck, open the matching `Example*` / `Auth*` file for that
 layer and mirror it line by line with your feature name.
-)

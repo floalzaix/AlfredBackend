@@ -11,25 +11,33 @@ Alfred — home automation backend (SI & Infra).
 - Architecture: N-tier (layered)
 - Reference feature: `Example*` across all layers
 
-All project content (code, comments, docs, commit messages, user-facing strings) must be **English only**.
+All project content (code, comments, docs, commit messages) must be
+**English**. **Exception:** user-facing error and validation messages
+(DTO `ErrorMessage`, `AppException` titles/details, generic 500 text)
+are in **French** for the frontend.
+
+API path base: **`/api`** (`UsePathBase("/api")`). Clients call
+`http://localhost:5050/api/...`.
 
 ---
 
 ## Authentication (JWT Bearer)
 
 Auth is **JWT Bearer**. There is **no external verification /
-introspection server**. The API issues the JWT on login and validates
-it locally on each protected request. Active tokens are tracked by
-`jti` in `UserToken` so logout can revoke them early.
+introspection server**. The API issues the JWT on login **or register**
+and validates it locally on each protected request. Active tokens are
+tracked by `jti` in `UserToken` so logout can revoke them early.
 
-**Client flow**
+**Client flow** (paths relative to `/api`)
 
-1. `POST /auth/register` — create an account
+1. `POST /auth/register` — create an account and receive
+   `{ access_token, token_type: "Bearer" }` (same shape as login)
 2. `POST /auth/login` — receive `{ access_token, token_type: "Bearer" }`
    (JWT `jti` persisted in `UserToken`)
 3. Send on protected routes:
    `Authorization: Bearer <access_token>`
-4. `POST /auth/logout` (requires `User`) — revoke the current token by
+4. `GET /auth/me` (requires `User`) — current user profile
+5. `POST /auth/logout` (requires `User`) — revoke the current token by
    deleting its `jti` from the database
 
 The token expires after `JwtConfig.ExpirationTime` minutes
@@ -59,13 +67,17 @@ The token expires after `JwtConfig.ExpirationTime` minutes
 ```
 
 Public auth routes (`/auth/register`, `/auth/login`) stay without
-`.RequireAuthorization(...)`. Logout is protected (`User`).
-JWT middleware is already wired in `Program.cs`
+`.RequireAuthorization(...)`. `/auth/me` and `/auth/logout` are
+protected (`User`). JWT middleware is already wired in `Program.cs`
 (`UseAuthentication` / `UseAuthorization`). Do not reimplement
 token parsing in controllers or services.
 
 **Config** — `JwtConfig` in `appsettings*.json`; signing `Key` from
 user-secrets / env (never commit it). Details: `DAT.md` §9.
+
+**CORS** — policy `Frontend` from `Cors:AllowedOrigins` (dev:
+`http://localhost:8080`). Wired with `AddCors` / `UseCors` in
+`Program.cs`. Keep origins aligned with the Angular serve port.
 
 ---
 
@@ -168,10 +180,12 @@ Models must not reference ASP.NET).
   codes — the global handler already does that
 - Do **not** throw bare `Exception` / `InvalidOperationException` for
   expected cases (those become 500)
-- Keep messages **English** and safe for clients (e.g. login failures:
-  `"Invalid credentials."` — do not reveal whether email or password failed)
+- Throw messages in **French** for expected failures, e.g.
+  `throw new NotFoundException("Appareil introuvable.");`
+- Keep client-visible messages safe (e.g. login:
+  `"Mot de passe invalide."`)
 - Unexpected bugs stay uncaught → handler logs + generic 500 ProblemDetails
-  (no stack trace to the client)
+  in French (no stack trace to the client)
 
 ### Feature work
 
@@ -461,7 +475,8 @@ services.AddDbContext<AppDbContext>(...);
 - Prefer `sealed` on DTOs when inheritance is not needed
 - Keep routes as extension methods on `IEndpointRouteBuilder`
 - Match existing file headers and section comments style when editing nearby code
-- Keep user-facing validation messages in English
+- Keep user-facing validation / error messages in **French**;
+  everything else in English
 
 ---
 
@@ -475,7 +490,7 @@ Minimum verification after a feature:
 ```bash
 # start the dev database first (see commands.md)
 dotnet build
-dotnet run --project Backend.API
+dotnet run --project backend.api
 ```
 
 ---
