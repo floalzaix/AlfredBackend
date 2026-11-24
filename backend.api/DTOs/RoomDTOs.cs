@@ -31,3 +31,13 @@ public sealed class RoomResponseDTO {
     public Guid HouseholdId { get; init; }
     public string Name { get; init; } = string.Empty;
 }
+
+/**
+ * Item of GET /households/{householdId}/rooms (PIE-02).
+ */
+public sealed class RoomSummaryResponseDTO {
+    public Guid Id { get; init; }
+    public Guid HouseholdId { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public int DeviceCount { get; init; }
+}

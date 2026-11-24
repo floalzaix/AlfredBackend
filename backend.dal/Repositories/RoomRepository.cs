@@ -39,4 +39,22 @@ public class RoomRepository(
         _db.Rooms.Add(room);
         await _db.SaveChangesAsync();
     }
+
+    public async Task<List<RoomSummary>> GetSummariesByHouseholdAsync(
+        Guid householdId
+    ) {
+        return await _db.Rooms
+            .Where(r => r.HouseholdId == householdId)
+            .OrderBy(r => r.Name)
+            .Select(r => new RoomSummary {
+                Id = r.Id,
+                HouseholdId = r.HouseholdId,
+                Name = r.Name,
+                // TODO (APP stories): count the devices of the room
+                // once the Device model exists, e.g.
+                // _db.Devices.Count(d => d.RoomId == r.Id)
+                DeviceCount = 0
+            })
+            .ToListAsync();
+    }
 }

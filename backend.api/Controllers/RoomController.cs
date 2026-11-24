@@ -46,6 +46,23 @@ public class RoomController(
         );
     }
 
+    public async Task<IResult> GetRooms(
+        ClaimsPrincipal claimsPrincipal,
+        Guid householdId
+    ) {
+        List<RoomSummary> rooms = await _roomService.GetRoomsAsync(
+            GetUserId(claimsPrincipal),
+            householdId
+        );
+
+        return Results.Ok(rooms.Select(r => new RoomSummaryResponseDTO {
+            Id = r.Id,
+            HouseholdId = r.HouseholdId,
+            Name = r.Name,
+            DeviceCount = r.DeviceCount
+        }));
+    }
+
     //
     //  Helpers
     //

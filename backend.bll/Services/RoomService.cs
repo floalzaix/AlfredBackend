@@ -36,14 +36,10 @@ public class RoomService(
         Guid householdId,
         string name
     ) {
-        HouseholdMember? member = await _householdRepository.GetMemberAsync(
+        HouseholdMember member = await GetMemberOrThrowAsync(
             householdId,
             userId
         );
-
-        if (member is null) {
-            throw new NotFoundException("Foyer introuvable.");
-        }
 
         if (member.Role != HouseholdRole.Admin) {
             throw new ForbiddenException(
@@ -68,5 +64,34 @@ public class RoomService(
         await _roomRepository.AddAsync(room);
 
         return room;
+    }
+
+    /**
+     * PIE-02: any member of the household (admin or not)
+     * can list its rooms.
+     */
+    public async Task<List<RoomSummary>> GetRoomsAsync(
+        Guid userId,
+        Guid householdId
+    ) {
+        await GetMemberOrThrowAsync(householdId, userId);
+
+        return await _roomRepository.GetSummariesByHouseholdAsync(householdId);
+    }
+
+    //
+    //  Helpers
+    //
+
+    /**
+     * Not a member -> 404, so the API does not reveal
+     * whether the household exists.
+     */
+    private async Task<HouseholdMember> GetMemberOrThrowAsync(
+        Guid householdId,
+        Guid userId
+    ) {
+        return await _householdRepository.GetMemberAsync(householdId, userId)
+            ?? throw new NotFoundException("Foyer introuvable.");
     }
 }

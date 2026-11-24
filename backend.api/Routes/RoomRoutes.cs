@@ -31,6 +31,19 @@ public static class RoomRoutes {
         //  Routes
         //
 
+        // PIE-02: list the rooms of the household (any member)
+        roomRouter.MapGet("/", async (
+            RoomController roomController,
+            ClaimsPrincipal claimsPrincipal,
+            Guid householdId
+        ) => {
+            return await roomController.GetRooms(claimsPrincipal, householdId);
+        })
+        .Produces<List<RoomSummaryResponseDTO>>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status404NotFound);
+
         // PIE-01: create a room (household admin only)
         roomRouter.MapPost("/", async (
             RoomController roomController,

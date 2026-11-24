@@ -17,4 +17,5 @@ using Backend.Models;
 public interface IRoomRepository {
     Task<bool> ExistsByNameAsync(Guid householdId, string name);
     Task AddAsync(Room room);
+    Task<List<RoomSummary>> GetSummariesByHouseholdAsync(Guid householdId);
 }
