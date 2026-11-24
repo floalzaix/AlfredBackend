@@ -15,5 +15,5 @@ variables:
 steps:
 - script: cd backend.api && dotnet user-secrets set "DALConfig:DBPassword" "$(DB_PASSWORD)" && dotnet user-secrets set "JwtConfig:Key" "$(JWT_KEY)"
   displayName: "Creating secrets."
-- script: dotnet build "Backend.slnx" --configuration $(buildConfiguration)
+- script: dotnet build "backend.slnx" --configuration $(buildConfiguration)
   displayName: 'dotnet build $(buildConfiguration)'
