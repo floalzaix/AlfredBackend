@@ -13,5 +13,6 @@ variables:
   buildConfiguration: 'Release'
 
 steps:
-- script: dotnet build --configuration $(buildConfiguration)
+- script: dotnet user-secrets set "DALConfig:DBPassword" "$(DB_PASSWORD)" && dotnet user-secrets set "JwtConfig:Key" "$(JWT_KEY)"
+- script: dotnet build "Backend.slnx" --configuration $(buildConfiguration)
   displayName: 'dotnet build $(buildConfiguration)'
