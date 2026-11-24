@@ -42,6 +42,8 @@ public class AppDbContext(
     // public DbSet<MyExampleModel> MyExampleModels => Set<MyExampleModel>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
+    public DbSet<Household> Households => Set<Household>();
+    public DbSet<HouseholdMember> HouseholdMembers => Set<HouseholdMember>();
 
     // YOURS
 
@@ -65,6 +67,25 @@ public class AppDbContext(
             user.Property(u => u.Email).HasMaxLength(256);
             user.Property(u => u.PasswordHash).HasMaxLength(512);
             user.Property(u => u.Role).HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<Household>(household => {
+            household.Property(h => h.Name).HasMaxLength(100).IsRequired();
+            household.Property(h => h.InvitationCode).HasMaxLength(16);
+            household.HasIndex(h => h.InvitationCode).IsUnique();
+        });
+
+        modelBuilder.Entity<HouseholdMember>(member => {
+            member.HasKey(m => new { m.HouseholdId, m.UserId });
+            member.Property(m => m.Role).HasConversion<string>().HasMaxLength(16).IsRequired();
+            member.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(m => m.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            member.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<UserToken>(userToken => {

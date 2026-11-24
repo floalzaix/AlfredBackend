@@ -63,3 +63,13 @@ public class ConflictException : AppException {
     ) : base(message, 409, "Conflit") {
     }
 }
+
+//
+//  BadRequestException
+//
+
+public class BadRequestException : AppException {
+    public BadRequestException(string message = "La requête est invalide.")
+        : base(message, 400, "Requête invalide") {
+    }
+}

@@ -70,6 +70,7 @@ public static class DependencyInjection {
         services.AddScoped<IExampleService, ExampleService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IHouseholdService, HouseholdService>();
 
         return services;
     }
