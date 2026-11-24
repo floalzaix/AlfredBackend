@@ -70,10 +70,8 @@ partial class AppDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("Backend.Models.HouseholdMember", b =>
         {
-            b.HasOne("Backend.Models.Household", "Household").WithMany("Members").HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-            b.HasOne("Backend.Models.User", "User").WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-            b.Navigation("Household");
-            b.Navigation("User");
+            b.HasOne("Backend.Models.Household", null).WithMany().HasForeignKey("HouseholdId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            b.HasOne("Backend.Models.User", null).WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
         });
 
         modelBuilder.Entity("Backend.Models.UserToken", b =>

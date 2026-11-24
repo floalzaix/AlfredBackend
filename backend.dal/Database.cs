@@ -75,19 +75,14 @@ public class AppDbContext(
             household.HasIndex(h => h.InvitationCode).IsUnique();
         });
 
-        // Configure the relationship from the CLR Household entity so EF Core
-        // binds Members to the real ICollection<HouseholdMember> navigation.
-        modelBuilder.Entity<Household>(household => {
-            household.HasMany(h => h.Members)
-                .WithOne(m => m.Household)
-                .HasForeignKey(m => m.HouseholdId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
         modelBuilder.Entity<HouseholdMember>(member => {
             member.HasKey(m => new { m.HouseholdId, m.UserId });
             member.Property(m => m.Role).HasConversion<string>().HasMaxLength(16).IsRequired();
-            member.HasOne(m => m.User)
+            member.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(m => m.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            member.HasOne<User>()
                 .WithMany()
                 .HasForeignKey(m => m.UserId)
                 .OnDelete(DeleteBehavior.Cascade);

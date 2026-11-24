@@ -27,8 +27,34 @@ public static class HouseholdRoutes
             .RequireAuthorization("User")
             .WithName("CreateHousehold")
             .Produces<HouseholdCreatedResponseDTO>(StatusCodes.Status201Created)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        routes.MapPut("/households/{id:guid}", async (
+            Guid id,
+            HouseholdController controller,
+            UpdateHouseholdRequestDTO request,
+            System.Security.Claims.ClaimsPrincipal user,
+            CancellationToken cancellationToken) =>
+                await controller.Update(id, request, user, cancellationToken))
+            .RequireAuthorization("User")
+            .WithName("UpdateHousehold")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        routes.MapDelete("/households/{id:guid}", async (
+            Guid id,
+            HouseholdController controller,
+            System.Security.Claims.ClaimsPrincipal user,
+            CancellationToken cancellationToken) =>
+                await controller.Delete(id, user, cancellationToken))
+            .RequireAuthorization("User")
+            .WithName("DeleteHousehold")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 }

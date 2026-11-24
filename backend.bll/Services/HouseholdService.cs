@@ -13,17 +13,10 @@ public class HouseholdService(IHouseholdRepo householdRepository) : IHouseholdSe
         return householdRepository.GetHouseholdsForUserAsync(userId, cancellationToken);
     }
 
-
     public async Task<Household> CreateHouseholdAsync(
         string name, Guid creatorUserId, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new BadRequestException("Le nom du foyer est obligatoire.");
-
         var normalizedName = name.Trim();
-        if (normalizedName.Length > 100)
-            throw new BadRequestException("Le nom du foyer ne doit pas dépasser 100 caractères.");
-
         var now = DateTime.UtcNow;
         var household = new Household
         {
@@ -43,5 +36,23 @@ public class HouseholdService(IHouseholdRepo householdRepository) : IHouseholdSe
 
         return await householdRepository.CreateHouseholdWithAdminAsync(
             household, adminMembership, cancellationToken);
+    }
+
+    public async Task UpdateHouseholdAsync(
+        Guid householdId, Guid userId, string name, CancellationToken cancellationToken = default)
+    {
+        var updated = await householdRepository.UpdateHouseholdAsync(
+            householdId, userId, name.Trim(), cancellationToken);
+        if (!updated)
+            throw new NotFoundException("Foyer introuvable ou droits insuffisants.");
+    }
+
+    public async Task DeleteHouseholdAsync(
+        Guid householdId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var deleted = await householdRepository.DeleteHouseholdAsync(
+            householdId, userId, cancellationToken);
+        if (!deleted)
+            throw new NotFoundException("Foyer introuvable ou droits insuffisants.");
     }
 }

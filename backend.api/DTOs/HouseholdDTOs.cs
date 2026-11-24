@@ -1,6 +1,20 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Backend.API.DTOs;
 
-public record CreateHouseholdRequestDTO(string? Name);
+public class CreateHouseholdRequestDTO
+{
+    [Required(ErrorMessage = "Le nom du foyer est obligatoire.")]
+    [StringLength(100, MinimumLength = 1, ErrorMessage = "Le nom du foyer doit contenir entre 1 et 100 caractères.")]
+    public string Name { get; init; } = string.Empty;
+}
+
+public class UpdateHouseholdRequestDTO
+{
+    [Required(ErrorMessage = "Le nom du foyer est obligatoire.")]
+    [StringLength(100, MinimumLength = 1, ErrorMessage = "Le nom du foyer doit contenir entre 1 et 100 caractères.")]
+    public string Name { get; init; } = string.Empty;
+}
 
 public record HouseholdCreatedResponseDTO(
     Guid Id,

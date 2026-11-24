@@ -19,8 +19,6 @@ public class Household
     public string? InvitationCode { get; set; }
 
     public DateTime CreatedAt { get; set; }
-
-    public ICollection<HouseholdMember> Members { get; set; } = new List<HouseholdMember>();
 }
 
 public class HouseholdMember
@@ -32,10 +30,6 @@ public class HouseholdMember
     public HouseholdRole Role { get; set; }
 
     public DateTime JoinedAt { get; set; }
-
-    public Household Household { get; set; } = null!;
-
-    public User User { get; set; } = null!;
 }
 
 public record HouseholdListItem(
