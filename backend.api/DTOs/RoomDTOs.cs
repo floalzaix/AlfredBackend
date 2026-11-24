@@ -24,6 +24,15 @@ public sealed class CreateRoomRequestDTO {
 }
 
 /**
+ * Body of PATCH /households/{householdId}/rooms/{roomId}.
+ */
+public sealed class UpdateRoomRequestDTO {
+    [Required(ErrorMessage = "Le nom de la pièce est requis !")]
+    [MaxLength(100, ErrorMessage = "Le nom de la pièce ne doit pas dépasser 100 caractères !")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/**
  * Room as returned to the client.
  */
 public sealed class RoomResponseDTO {

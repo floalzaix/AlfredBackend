@@ -109,5 +109,11 @@ public class AppDbContext(
             // One room name per household.
             room.HasIndex(r => new { r.HouseholdId, r.Name }).IsUnique();
         });
+
+        // TODO (APP stories): when the Device model is added, make
+        // Device.RoomId a nullable FK to Room with
+        // .OnDelete(DeleteBehavior.SetNull). PIE-05 requires that
+        // deleting a room keeps its devices in the household,
+        // without a room.
     }
 }

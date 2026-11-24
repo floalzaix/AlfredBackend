@@ -36,16 +36,11 @@ public class RoomService(
         Guid householdId,
         string name
     ) {
-        HouseholdMember member = await GetMemberOrThrowAsync(
+        await GetAdminOrThrowAsync(
             householdId,
-            userId
+            userId,
+            "Seul un administrateur du foyer peut créer une pièce."
         );
-
-        if (member.Role != HouseholdRole.Admin) {
-            throw new ForbiddenException(
-                "Seul un administrateur du foyer peut créer une pièce."
-            );
-        }
 
         string trimmedName = name.Trim();
 
@@ -79,9 +74,91 @@ public class RoomService(
         return await _roomRepository.GetSummariesByHouseholdAsync(householdId);
     }
 
+    /**
+     * PIE-05: rename a room (household admin only).
+     */
+    public async Task<Room> RenameRoomAsync(
+        Guid userId,
+        Guid householdId,
+        Guid roomId,
+        string name
+    ) {
+        await GetAdminOrThrowAsync(
+            householdId,
+            userId,
+            "Seul un administrateur du foyer peut modifier une pièce."
+        );
+
+        Room room = await GetRoomOrThrowAsync(householdId, roomId);
+        string trimmedName = name.Trim();
+
+        if (await _roomRepository.ExistsByNameAsync(
+            householdId,
+            trimmedName,
+            excludedRoomId: room.Id
+        )) {
+            throw new ConflictException(
+                "Une pièce porte déjà ce nom dans ce foyer."
+            );
+        }
+
+        room.Name = trimmedName;
+        await _roomRepository.UpdateAsync(room);
+
+        return room;
+    }
+
+    /**
+     * PIE-05: delete a room (household admin only).
+     *
+     * The devices of the room must stay in the household
+     * without a room: this is enforced by the database
+     * (Device.RoomId FK with SetNull, see Database.cs).
+     */
+    public async Task DeleteRoomAsync(
+        Guid userId,
+        Guid householdId,
+        Guid roomId
+    ) {
+        await GetAdminOrThrowAsync(
+            householdId,
+            userId,
+            "Seul un administrateur du foyer peut supprimer une pièce."
+        );
+
+        Room room = await GetRoomOrThrowAsync(householdId, roomId);
+
+        await _roomRepository.DeleteAsync(room);
+    }
+
     //
     //  Helpers
     //
+
+    /**
+     * Member but not admin -> 403 with the given message.
+     */
+    private async Task<HouseholdMember> GetAdminOrThrowAsync(
+        Guid householdId,
+        Guid userId,
+        string forbiddenMessage
+    ) {
+        HouseholdMember member = await GetMemberOrThrowAsync(
+            householdId,
+            userId
+        );
+
+        if (member.Role != HouseholdRole.Admin) {
+            throw new ForbiddenException(forbiddenMessage);
+        }
+
+        return member;
+    }
+
+    private async Task<Room> GetRoomOrThrowAsync(Guid householdId, Guid roomId) {
+        return await _roomRepository.GetByIdAsync(householdId, roomId)
+            ?? throw new NotFoundException("Pièce introuvable.");
+    }
 
     /**
      * Not a member -> 404, so the API does not reveal

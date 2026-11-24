@@ -63,6 +63,36 @@ public class RoomController(
         }));
     }
 
+    public async Task<IResult> RenameRoom(
+        ClaimsPrincipal claimsPrincipal,
+        Guid householdId,
+        Guid roomId,
+        UpdateRoomRequestDTO updateRoomRequestDTO
+    ) {
+        Room room = await _roomService.RenameRoomAsync(
+            GetUserId(claimsPrincipal),
+            householdId,
+            roomId,
+            updateRoomRequestDTO.Name
+        );
+
+        return Results.Ok(ToResponse(room));
+    }
+
+    public async Task<IResult> DeleteRoom(
+        ClaimsPrincipal claimsPrincipal,
+        Guid householdId,
+        Guid roomId
+    ) {
+        await _roomService.DeleteRoomAsync(
+            GetUserId(claimsPrincipal),
+            householdId,
+            roomId
+        );
+
+        return Results.NoContent();
+    }
+
     //
     //  Helpers
     //

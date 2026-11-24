@@ -63,5 +63,45 @@ public static class RoomRoutes {
         .ProducesProblem(StatusCodes.Status403Forbidden)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .ProducesProblem(StatusCodes.Status409Conflict);
+
+        // PIE-05: rename a room (household admin only)
+        roomRouter.MapPatch("/{roomId:guid}", async (
+            RoomController roomController,
+            ClaimsPrincipal claimsPrincipal,
+            Guid householdId,
+            Guid roomId,
+            UpdateRoomRequestDTO updateRoomRequestDTO
+        ) => {
+            return await roomController.RenameRoom(
+                claimsPrincipal,
+                householdId,
+                roomId,
+                updateRoomRequestDTO
+            );
+        })
+        .Produces<RoomResponseDTO>(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
+        // PIE-05: delete a room (household admin only)
+        roomRouter.MapDelete("/{roomId:guid}", async (
+            RoomController roomController,
+            ClaimsPrincipal claimsPrincipal,
+            Guid householdId,
+            Guid roomId
+        ) => {
+            return await roomController.DeleteRoom(
+                claimsPrincipal,
+                householdId,
+                roomId
+            );
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status404NotFound);
     }
 }
