@@ -60,6 +60,7 @@ public static class DependencyInjection {
 
         services.AddScoped<ExampleController>();
         services.AddScoped<AuthController>();
+        services.AddScoped<InvitationCodeController>();
 
         //
         //  Authorization registry

@@ -122,6 +122,8 @@ var app = builder.Build();
 //
 
 app.UseExceptionHandler();
+app.UsePathBase("/api");
+app.UseRouting();
 
 //
 //  CORS usage
@@ -151,10 +153,9 @@ app.UseHttpsRedirection();
 //  Routes
 //
 
-app.UsePathBase("/api");
-
 app.MapExampleRoutes();
 app.MapAuthRoutes();
+app.MapInvitationCodeRoutes();
 
 // Adding the SwaggerUI route
 if (app.Environment.IsDevelopment())

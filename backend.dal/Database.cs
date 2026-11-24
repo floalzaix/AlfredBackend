@@ -43,7 +43,8 @@ public class AppDbContext(
     public DbSet<User> Users => Set<User>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
 
-    // YOURS
+    public DbSet<Household> Households => Set<Household>();
+    public DbSet<HouseholdMember> HouseholdMembers => Set<HouseholdMember>();
 
     //
     //  Constraints registry
@@ -51,6 +52,19 @@ public class AppDbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Household>(household => {
+            household.Property(h => h.Name).HasMaxLength(100).IsRequired();
+            household.Property(h => h.InvitationCode).HasMaxLength(16);
+            household.HasIndex(h => h.InvitationCode).IsUnique();
+        });
+
+        modelBuilder.Entity<HouseholdMember>(member => {
+            member.HasKey(m => new { m.HouseholdId, m.UserId });
+            member.Property(m => m.Role).HasConversion<string>().HasMaxLength(16);
+            member.HasOne<Household>().WithMany().HasForeignKey(m => m.HouseholdId).OnDelete(DeleteBehavior.Cascade);
+            member.HasOne<User>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         // modelBuilder.Entity<MyExampleModel>(model => {
         //     model.HasOne(model => model.myExampleCategory)
