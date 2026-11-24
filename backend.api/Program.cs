@@ -124,6 +124,16 @@ var app = builder.Build();
 app.UseExceptionHandler();
 
 //
+//  Path base
+//
+
+// Must run before routing, otherwise the endpoints are matched
+// again after UseAuthorization and every protected route fails
+// with "a middleware was not found that supports authorization".
+app.UsePathBase("/api");
+app.UseRouting();
+
+//
 //  CORS usage
 //
 
@@ -150,8 +160,6 @@ app.UseHttpsRedirection();
 //
 //  Routes
 //
-
-app.UsePathBase("/api");
 
 app.MapExampleRoutes();
 app.MapAuthRoutes();
