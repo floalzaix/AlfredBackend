@@ -136,10 +136,10 @@ next layer’s `Add*()` method.
 
 ### Request flow
 
-1. **Route** (`Backend.API/Routes`) — exposes the HTTP endpoint, binds input, injects the controller
-2. **Controller** (`Backend.API/Controllers`) — maps DTO → service call, returns the result
-3. **Service** (`Backend.BLL/Services` via interface) — business rules; throws `AppException` subtypes for expected failures
-4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) — database access when needed (prefer returning `null` / empty over throwing business errors)
+1. **Route** (`backend.api/Routes`) — exposes the HTTP endpoint, binds input, injects the controller
+2. **Controller** (`backend.api/Controllers`) — maps DTO → service call, returns the result
+3. **Service** (`backend.bll/Services` via interface) — business rules; throws `AppException` subtypes for expected failures
+4. **Repository** (`backend.dal/Repositories` via `backend.dal/Interfaces`) — database access when needed (prefer returning `null` / empty over throwing business errors)
 5. **Model** (`Backend.Models`) — shared shape of domain data
 6. **On error** — uncaught exceptions bubble to `GlobalExceptionHandler` (`IExceptionHandler`): `AppException` → matching HTTP status + ProblemDetails; anything else → 500
 
@@ -154,8 +154,8 @@ Use the shared exception hierarchy and the global handler.
 
 | Piece | Location | Role |
 | --- | --- | --- |
-| `AppException` (+ subtypes) | `Backend.Models/Exceptions/` | Expected errors with `StatusCode` + `Title` |
-| `GlobalExceptionHandler` | `Backend.API/GlobalExceptionHandler.cs` | Maps exceptions → ProblemDetails JSON |
+| `AppException` (+ subtypes) | `backend.models/Exceptions/` | Expected errors with `StatusCode` + `Title` |
+| `GlobalExceptionHandler` | `backend.api/GlobalExceptionHandler.cs` | Maps exceptions → ProblemDetails JSON |
 | Registration | `AddExceptionHandler` + `AddProblemDetails` in API DI; `app.UseExceptionHandler()` early in `Program.cs` | Wires the pipeline |
 
 Existing subtypes:
@@ -166,7 +166,7 @@ Existing subtypes:
 | `NotFoundException` | 404 | Resource does not exist |
 | `ConflictException` | 409 | Duplicate / state conflict |
 
-Add a new subtype under `Backend.Models/Exceptions/` only when none of
+Add a new subtype under `backend.models/Exceptions/` only when none of
 the above fits (keep the HTTP status in the constructor, as integers —
 Models must not reference ASP.NET).
 
@@ -226,19 +226,19 @@ Copy and track:
 Feature: <Name>
 
 [ ] 1. Model(s) in Backend.Models
-[ ] 2. Repository interface in Backend.DAL/Interfaces (if persistence)
-[ ] 3. Repository class in Backend.DAL/Repositories (if persistence)
+[ ] 2. Repository interface in backend.dal/Interfaces (if persistence)
+[ ] 3. Repository class in backend.dal/Repositories (if persistence)
 [ ] 4. Register entity on AppDbContext + constraints (if persistence)
-[ ] 5. Register repository in Backend.DAL/DependencyInjection.cs
+[ ] 5. Register repository in backend.dal/DependencyInjection.cs
 [ ] 6. EF migration (if persistence)
-[ ] 7. Service interface in Backend.BLL/Interfaces
-[ ] 8. Service implementation in Backend.BLL/Services
+[ ] 7. Service interface in backend.bll/Interfaces
+[ ] 8. Service implementation in backend.bll/Services
        (throw AppException subtypes for expected errors)
-[ ] 9. Register service in Backend.BLL/DependencyInjection.cs
-[ ] 10. Request/response DTOs in Backend.API/DTOs
-[ ] 11. Controller in Backend.API/Controllers
-[ ] 12. Register controller in Backend.API/DependencyInjection.cs
-[ ] 13. Routes in Backend.API/Routes + Map* in Program.cs
+[ ] 9. Register service in backend.bll/DependencyInjection.cs
+[ ] 10. Request/response DTOs in backend.api/DTOs
+[ ] 11. Controller in backend.api/Controllers
+[ ] 12. Register controller in backend.api/DependencyInjection.cs
+[ ] 13. Routes in backend.api/Routes + Map* in Program.cs
 [ ] 14. RequireAuthorization on private routes (User / Admin)
 [ ] 15. Expected errors covered (AppException / existing subtypes)
        + documented on routes with .Produces / .ProducesProblem
@@ -248,11 +248,11 @@ Feature: <Name>
 
 ### Step details
 
-#### 1. Models — `Backend.Models/<Feature>Models.cs`
+#### 1. Models — `backend.models/<Feature>Models.cs`
 
 - Properties only (no business logic, no EF attributes unless required later)
 - Shared across layers intentionally (avoid duplicating the same type per layer)
-- Shared exceptions live in `Backend.Models/Exceptions/` (do not put
+- Shared exceptions live in `backend.models/Exceptions/` (do not put
   feature-specific HTTP mapping in Models)
 
 #### 2–6. Persistence — `Backend.DAL` (when needed)
@@ -359,10 +359,10 @@ Each project that needs settings should own a typed config class.
 
 ### Steps
 
-1. **Create** `<Layer>Config.cs` in that project (example: `Backend.DAL/DALConfig.cs`)
+1. **Create** `<Layer>Config.cs` in that project (example: `backend.dal/DALConfig.cs`)
 2. **Annotate** properties with DataAnnotations (`[Required]`, …) so bad/missing
    values fail fast at startup
-3. **Add** the matching JSON section in `Backend.API/appsettings.json` and the
+3. **Add** the matching JSON section in `backend.api/appsettings.json` and the
    environment overlays:
    - `appsettings.Development.json` → local / dev values
    - `appsettings.Production.json` → production values (fake placeholders in
@@ -419,7 +419,7 @@ variables — not from tracked appsettings. See `commands.md`.
 
 ### Dev database (Docker)
 
-Use `Backend.DAL/Dockerfile` for local PostgreSQL (**dev only** —
+Use `backend.dal/Dockerfile` for local PostgreSQL (**dev only** —
 password is tracked in git). Build/run commands: see `commands.md`.
 
 Default settings: host `localhost`, port `4040`, database `alfred_db`
@@ -434,9 +434,9 @@ Each layer owns its registrations and chains the layer below:
 
 | File | Calls next | Registers |
 | --- | --- | --- |
-| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers, exception handler, `TokenCleanupBackgroundService` |
-| `Backend.BLL/DependencyInjection.cs` | `AddDAL()` | services (`I*Service` → `*Service`) |
-| `Backend.DAL/DependencyInjection.cs` | — | `AppDbContext`, repositories |
+| `backend.api/DependencyInjection.cs` | `AddBLL()` | controllers, exception handler, `TokenCleanupBackgroundService` |
+| `backend.bll/DependencyInjection.cs` | `AddDAL()` | services (`I*Service` → `*Service`) |
+| `backend.dal/DependencyInjection.cs` | — | `AppDbContext`, repositories |
 
 Default lifetime: **Scoped**.
 
