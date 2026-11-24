@@ -21,7 +21,7 @@ responsive web client.
 - Smart notifications
 - Bonus: voice assistant, device simulators
 
-**Expected domain entities** (to confirm): User, Home, Room, Device, Scene.
+**Expected domain entities** (to confirm): User, Household, HouseholdMember, Room, Device, Scene.
 
 **Implemented today:** User auth (register / login / logout / me), JWT
 revocation, Example demo route, Angular auth UI (login / register).
@@ -183,7 +183,7 @@ create/delete/check tokens, cleanup expired tokens).
 - Feature routes must use **REST** names: resource nouns (usually plural)
   + HTTP methods for actions (`GET /devices`, `POST /devices`, …)
   Avoid verb paths (`/getDevices`). Nested resources are fine when ownership
-  is clear (`/homes/{id}/rooms`)
+  is clear (`/households/{id}/rooms`)
 - Request DTOs are dedicated and `sealed`; GET DTOs use `[AsParameters]`
 - Document expected statuses with `.Produces` / `.ProducesValidationProblem`
   / `.ProducesProblem` for Swagger
@@ -432,7 +432,7 @@ API/app containerization, CI/CD, and hosting strategy not defined yet.
 1. Frontend: protected pages, logout, wire `authGuard`
 2. Extend roles beyond current `User` / `Admin` policies
    (`home_manager`, `admin_reader`, …)
-3. Core features: Home, Room, Device (API + SPA)
+3. Core features: Household, Room, Device (API + SPA)
 4. Matter / ZigBee protocol integration (gateway or adapters)
 5. LED scenes and notifications
 6. Tests, CI/CD, and API/app containerization (DB Docker already exists for dev)

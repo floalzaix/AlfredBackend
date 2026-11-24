@@ -18,7 +18,7 @@
  *     DELETE /devices/{id}     → delete a device
  *   Avoid verb-based paths like /getDevices or /createDevice.
  *   Nested resources are fine when ownership is clear, e.g.
- *   /homes/{homeId}/rooms.
+ *   /households/{householdId}/rooms.
  *
  * This Example route keeps a demo path (/hello_world). New feature
  * routes should follow the REST style above.

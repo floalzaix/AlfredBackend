@@ -155,6 +155,7 @@ app.UsePathBase("/api");
 
 app.MapExampleRoutes();
 app.MapAuthRoutes();
+app.MapHouseholdRoutes();
 
 // Adding the SwaggerUI route
 if (app.Environment.IsDevelopment())
