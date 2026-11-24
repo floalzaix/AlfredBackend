@@ -75,7 +75,7 @@ Rule of thumb:
 
 ---
 
-## Choose a feature name
+## Choose a feature name (or extend an existing one)
 
 Pick **one** PascalCase name and reuse it everywhere.
 
@@ -83,6 +83,29 @@ Examples: `Device`, `Home`, `User`, `Scene`
 
 In this guide we use **`Device`**.  
 Replace `Device` with your own name in every file.
+
+### New capability ≠ always new files
+
+If what you are building is **tightly linked** to a feature that
+already exists, **extend that feature** instead of creating a parallel
+set of files (Models / Repo / Service / DTOs / Controller / Routes).
+
+Goal: keep the number of feature files under control and keep one clear
+owner for related behavior.
+
+| Situation | What to do |
+| --- | --- |
+| Home invitation codes, members, join/leave home | Extend **`Home*`** (same service, routes, DTOs, repo, …) |
+| Device sensors under an existing Device feature | Extend **`Device*`** |
+| Clearly separate domain (e.g. Scenes vs Homes) | Create a **new** feature prefix and file set |
+
+Example: an invitation code for a household is a **new capability**, but
+it still belongs to **Home** — add methods and routes there; do **not**
+spin up `InvitationService`, `InvitationController`,
+`InvitationRoutes`, etc.
+
+Only start the full checklist below as a **new** feature when no
+existing prefix owns that domain.
 
 ---
 
@@ -714,21 +737,24 @@ More detail: `AGENTS.md` (Coding style → Comments).
 
 1. Copy `Example*`, then rename carefully
 2. One feature name, reused in every layer
-3. Never skip layers (Controller must not call the repository directly)
-4. Always register new services/controllers/repositories in DI
-5. Persist models by declaring them on `AppDbContext` in `Database.cs`
-6. Keep route names REST (resource nouns + HTTP verbs)
-7. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
-8. Throw `AppException` subtypes for expected errors (not bare `Exception`)
-9. **Validate request DTOs** with DataAnnotations + French `ErrorMessage`
-10. **Propagate `CancellationToken`** route → controller → service → repo → EF
-11. **Comment** non-obvious features/functions (English, `Example*` style)
-12. In repositories, use **fluent EF** (`Where` / `OrderBy` / `Select` /
+3. If the capability is tightly related to an existing feature,
+   **extend that feature** — do not create a parallel file set
+   (e.g. home invite → `Home*`, not `Invitation*`)
+4. Never skip layers (Controller must not call the repository directly)
+5. Always register new services/controllers/repositories in DI
+6. Persist models by declaring them on `AppDbContext` in `Database.cs`
+7. Keep route names REST (resource nouns + HTTP verbs)
+8. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
+9. Throw `AppException` subtypes for expected errors (not bare `Exception`)
+10. **Validate request DTOs** with DataAnnotations + French `ErrorMessage`
+11. **Propagate `CancellationToken`** route → controller → service → repo → EF
+12. **Comment** non-obvious features/functions (English, `Example*` style)
+13. In repositories, use **fluent EF** (`Where` / `OrderBy` / `Select` /
     `To*Async`) — not raw SQL or LINQ query syntax
-13. Keep each file focused on its job
-14. Write code and comments in **English**; user-facing errors in **French**
+14. Keep each file focused on its job
+15. Write code and comments in **English**; user-facing errors in **French**
 
 If you are stuck, open the matching `Example*` / `Auth*` file for that
 layer and mirror it line by line with your feature name.
-More detail: `AGENTS.md` (CancellationToken, DTO validation, comments,
-repository queries).
+More detail: `AGENTS.md` (feature ownership, CancellationToken, DTO
+validation, comments, repository queries).

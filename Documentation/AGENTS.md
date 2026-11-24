@@ -287,11 +287,31 @@ Reference: `AuthService.Login` → `UnauthorizedException`; handler in
 
 Feature naming: use one feature prefix everywhere (`Device`, `Home`, `User`, …). Mirror the `Example*` layout.
 
+**Extend an existing feature when the work is tightly related.** A new
+capability is not always a new feature prefix / new file set. If it
+belongs to the same domain aggregate, add methods, DTOs, routes, and
+models **inside** that feature instead of creating parallel
+`Invitation*` / `HomeInvite*` stacks.
+
+Example: a **home invitation code** is part of **Home** — extend
+`HomeService`, `HomeController`, `HomeRoutes`, `HomeDTOs`,
+`IHomeRepository`, models under Home, etc. Do **not** invent a full
+`Invitation` feature tree just to limit conceptual “newness”; the goal
+is fewer files and one clear owner.
+
+Create a **new** feature prefix only when the domain is clearly
+separate (e.g. `Device` vs `Home`, `Auth` vs `Scene`).
+
 ---
 
 ## How to add a feature
 
 Use the `Example*` feature as the template. Complete the steps that apply; skip persistence steps only when the feature has no database work.
+
+**Before step 1:** decide whether this is a **new** feature or an
+**extension** of an existing one (see Feature naming above). If it
+extends an existing feature, edit those files — do not copy the whole
+checklist into a new parallel file set.
 
 ### Checklist
 
@@ -430,6 +450,9 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
 
 ### What not to do when adding a feature
 
+- Do not create a full new feature file set when the capability is
+  deeply tied to an existing feature (e.g. home invitation code →
+  extend `Home*`, do not add `Invitation*` everywhere)
 - Do not put service or repository logic inside route lambdas
 - Do not register concrete services where an interface already exists (`IExampleService` pattern)
 - Do not add a new project or flatten layers without an explicit architectural decision
@@ -656,5 +679,6 @@ dotnet run --project backend.api
    `CancellationToken` on async I/O
 5. Comment non-obvious features/methods (English, `Example*` style);
    use fluent EF queries in repositories
-6. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
+6. Prefer extending a related existing feature over a new file tree
+7. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
 

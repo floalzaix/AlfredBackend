@@ -434,6 +434,9 @@ API/app containerization, CI/CD, and hosting strategy not defined yet.
 - **Exception:** user-facing error / validation messages in **French**
 - Adding a feature: follow the `Example*` / `Auth*` template layer by layer
   (checklist in `AGENTS.md` and `HOW_TO_ADD_A_FEATURE.md`)
+- Closely related capabilities stay in the same feature file set
+  (e.g. home invitation codes → extend `Home*`, do not create
+  `Invitation*` everywhere)
 
 ## 13. Attention points
 
