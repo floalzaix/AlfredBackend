@@ -164,7 +164,13 @@ Reference: `Backend.DAL/DALConfig.cs`.
 - Without that registration, EF will not create/update a table for the model
 - EF Core migrations live in `Backend.DAL/Migrations` and are applied from
   `Backend.API` as startup project
-- Connection strings live under `DALConfig` (no secrets hardcoded in code)
+- Connection strings live under `DALConfig`. The connection string uses
+  `Password={PASSWORD_PLACEHOLDER}`; `DBPassword` is substituted at
+  runtime via `GetFullConnectionString()`
+- **Dev**: `DBPassword` may live in `appsettings.Development.json`
+  (Docker password is tracked on purpose)
+- **Prod**: set env `DALConfig__DBPassword` — never commit the real
+  Azure password. See `commands.md`
 - **Dev database**: `Backend.DAL/Dockerfile` (PostgreSQL, port `4040`,
   database `alfred_db`). Commands in `commands.md` / `README.md`.
   Dev-only credentials; do not use that image in production.
@@ -181,13 +187,14 @@ create/delete/check tokens, cleanup expired tokens).
 
 | File | Connection string purpose |
 | --- | --- |
-| `appsettings.json` | Default / shared fallback |
-| `appsettings.Development.json` | Local PostgreSQL via Docker (dev) |
+| `appsettings.json` | Azure / default host + `{PASSWORD_PLACEHOLDER}` |
+| `appsettings.Development.json` | Local Docker DB + `DBPassword` |
 | `appsettings.Production.json` | Fake production example |
 
 ```json
 "DALConfig": {
-  "ConnectionString": "Host=…;Port=4040;Database=…;Username=…;Password=…"
+  "ConnectionString": "…;Password={PASSWORD_PLACEHOLDER};…",
+  "DBPassword": "…"
 }
 ```
 

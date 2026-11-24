@@ -384,7 +384,9 @@ Feature: <Name>
   - Without this step the model exists in code but is **not** persisted
 - Register: `services.AddScoped<I<Feature>Repository, <Feature>Repository>();`
 - Migration commands: see `commands.md`
-- Connection string comes from `DALConfig` in `appsettings*.json` (never hardcode secrets)
+- Connection string comes from `DALConfig` (`ConnectionString` +
+  `DBPassword` / `{PASSWORD_PLACEHOLDER}`). Prod password via env
+  `DALConfig__DBPassword` — see `commands.md`
 
 #### 7–9. Business logic — `Backend.BLL`
 
@@ -531,17 +533,30 @@ The section name in JSON must match `BindConfiguration("…")`
 
 | File | Purpose |
 | --- | --- |
-| `appsettings.json` | Default / shared fallback |
-| `appsettings.Development.json` | Local PostgreSQL (dev Docker DB) |
+| `appsettings.json` | Default / Azure host string with `{PASSWORD_PLACEHOLDER}` |
+| `appsettings.Development.json` | Local PostgreSQL (dev Docker DB) + `DBPassword` |
 | `appsettings.Production.json` | Fake production example |
 
 Section shape:
 
 ```json
 "DALConfig": {
-  "ConnectionString": "Host=…;Port=4040;Database=…;Username=…;Password=…"
+  "ConnectionString": "…;Password={PASSWORD_PLACEHOLDER};…",
+  "DBPassword": "…"
 }
 ```
+
+`DALConfig.GetFullConnectionString()` replaces `{PASSWORD_PLACEHOLDER}`
+with `DBPassword` before Npgsql connects.
+
+| Environment | Where `DBPassword` comes from |
+| --- | --- |
+| Development | `appsettings.Development.json` (local Docker password) |
+| Production | env var `DALConfig__DBPassword` (never commit the real value) |
+
+Optional local override: user-secrets
+`dotnet user-secrets set "DALConfig:DBPassword" "…"`. Details:
+`commands.md`.
 
 ### JWT settings (`JwtConfig`)
 
@@ -563,7 +578,8 @@ password is tracked in git). Build/run commands: see `commands.md`.
 
 Default settings: host `localhost`, port `4040`, database `alfred_db`
 (user/password in the Dockerfile). Keep
-`appsettings.Development.json` aligned with those values.
+`appsettings.Development.json` aligned with those values
+(`ConnectionString` placeholder + `DBPassword`).
 
 ---
 

@@ -187,9 +187,10 @@ public DbSet<Device> Devices => Set<Device>();
 Add relationships in `OnModelCreating` only when you need them
 (see the commented example already in that file).
 
-Connection strings live under `DALConfig` in
-`appsettings.Development.json` (dev Docker DB on port `4040`) and
-`appsettings.Production.json` (fake prod example). Do not hardcode them.
+Connection strings live under `DALConfig`:
+`ConnectionString` with `Password={PASSWORD_PLACEHOLDER}`, plus
+`DBPassword` (dev: `appsettings.Development.json`; prod: env
+`DALConfig__DBPassword`). Do not commit production passwords.
 Start the DB with `Backend.DAL/Dockerfile` before running migrations
 (see `commands.md`).
 

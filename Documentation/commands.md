@@ -55,6 +55,36 @@ Follow PostgreSQL logs.
 | Username / Password | see `backend.dal/Dockerfile` |
 
 Connection string: `backend.api/appsettings.Development.json` (`DALConfig`).
+Dev puts `DBPassword` in that file (Docker password is tracked on purpose).
+
+
+## Database password (prod)
+
+`DALConfig.ConnectionString` keeps a placeholder
+`Password={PASSWORD_PLACEHOLDER}`. At startup,
+`GetFullConnectionString()` replaces it with `DALConfig.DBPassword`.
+
+**Production:** never commit the real password. Inject it as an
+environment variable (ASP.NET maps `__` to `:`):
+
+```
+DALConfig__DBPassword=<azure-postgres-password>
+```
+
+Set that on the host / App Service / container before starting the API.
+Missing `DBPassword` fails startup (`ValidateOnStart`).
+
+**Local optional alternative** (same store as JWT, once per machine —
+not per terminal):
+
+```
+cd backend.api
+dotnet user-secrets set "DALConfig:DBPassword" "<password>"
+```
+
+User-secrets are stored under `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\`
+and are loaded automatically in Development. Prefer
+`appsettings.Development.json` for the local Docker DB password.
 
 
 ## JWT (user-secrets)
