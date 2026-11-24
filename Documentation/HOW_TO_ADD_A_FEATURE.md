@@ -351,7 +351,15 @@ call it from your methods. Always forward `cancellationToken`.
 **Expected errors:** list what can go wrong for the user (not found,
 duplicate name, bad credentials, …). For each case, throw an
 `AppException` subtype from `Backend.Models.Exceptions` with a
-**French** message (shown in the frontend):
+**French** message.
+
+**Important:** `AppException` messages are **shown to the user** (via
+ProblemDetails / the frontend). They are **not** like a 500, where the
+client only gets a generic message. Write them as careful UI copy:
+
+- Clear, polite, short, in **French**
+- No stack traces, SQL, internal ids, or English debug notes
+- Safe even if displayed in a toast / dialog
 
 | Exception | HTTP status | Example message |
 | --- | --- | --- |
@@ -368,7 +376,8 @@ Rules:
 - Do **not** read HTTP details here (no DTOs from the API project)
 - Do **not** use `AppDbContext` directly here (use the repository)
 - Do **not** throw bare `new Exception("…")` for expected cases
-  (that becomes a 500)
+  (that becomes a 500 with a generic client message — wrong for
+  expected business failures)
 
 ---
 
@@ -745,7 +754,8 @@ More detail: `AGENTS.md` (Coding style → Comments).
 6. Persist models by declaring them on `AppDbContext` in `Database.cs`
 7. Keep route names REST (resource nouns + HTTP verbs)
 8. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
-9. Throw `AppException` subtypes for expected errors (not bare `Exception`)
+9. Throw `AppException` subtypes for expected errors (not bare `Exception`);
+   their messages are **user-facing** — write careful French UI copy
 10. **Validate request DTOs** with DataAnnotations + French `ErrorMessage`
 11. **Propagate `CancellationToken`** route → controller → service → repo → EF
 12. **Comment** non-obvious features/functions (English, `Example*` style)

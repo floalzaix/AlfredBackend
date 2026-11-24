@@ -108,6 +108,11 @@ messages/titles, and the generic 500 ProblemDetails text shown to
 clients are in **French** (frontend display). Code, comments, docs,
 and commit messages stay in **English**.
 
+**Careful with `AppException` text:** unlike a real 500 (generic client
+message + server-side log), `AppException` detail/title is often
+**displayed to the user**. Keep those strings clear, polite, French,
+and free of internal/debug information.
+
 ## 5. Backend technical stack
 
 | Area | Choice | Status |

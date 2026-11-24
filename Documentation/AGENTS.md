@@ -248,19 +248,28 @@ Models must not reference ASP.NET).
 ### Rules
 
 - **Throw from the BLL** (services) for expected business failures:
-  `throw new NotFoundException("Device not found.");`
+  `throw new NotFoundException("Appareil introuvable.");`
 - Prefer repositories that return `T?` / empty collections; let the
   service decide which `AppException` to throw
 - Do **not** `try/catch` in every controller/route just to map status
   codes — the global handler already does that
 - Do **not** throw bare `Exception` / `InvalidOperationException` for
   expected cases (those become 500)
-- Throw messages in **French** for expected failures, e.g.
+
+**`AppException` messages are user-facing (not like a 500):**
+
+- The handler puts the exception **message** (and title) into
+  ProblemDetails. The frontend often **displays that text** to the user
+- Write those strings carefully: clear, polite, **French**, safe to show
+- Do **not** put stack traces, SQL, internal ids, English debug notes,
+  or developer jargon in `AppException` messages
+- Prefer short product copy, e.g.
   `throw new NotFoundException("Appareil introuvable.");`
-- Keep client-visible messages safe (e.g. login:
-  `"Mot de passe invalide."`)
-- Unexpected bugs stay uncaught → handler logs + generic 500 ProblemDetails
-  in French (no stack trace to the client)
+  or login: `"Mot de passe invalide."`
+- Unexpected bugs stay uncaught → handler logs + a **generic** 500
+  ProblemDetails in French (no stack trace / no internal detail to the
+  client). Do not rely on 500 text to explain a business failure —
+  use the right `AppException` subtype instead
 
 ### Feature work
 
@@ -474,6 +483,8 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
   `Example*` file-header / intent comment style (English)
 - Do not throw bare `Exception` for expected business failures (use
   `AppException` subtypes so clients get the right status, not 500)
+- Do not put unsafe / internal / English debug text in `AppException`
+  messages — they are often shown to the user (unlike a generic 500)
 - Do not catch exceptions in every controller just to write HTTP status
   codes — rely on `GlobalExceptionHandler`
 - Do not reintroduce `UseDeveloperExceptionPage` for this API unless you
@@ -607,6 +618,8 @@ services.AddDbContext<AppDbContext>(...);
 - Match existing file headers and section comments style when editing nearby code
 - Keep user-facing validation / error messages in **French**;
   everything else in English
+- Treat `AppException` messages as **UI copy** (user may see them);
+  reserve internal detail for logs / real 500s only
 
 ### Comments (when intent is not obvious)
 
