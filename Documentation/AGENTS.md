@@ -342,6 +342,13 @@ Feature: <Name>
 - Prefer `Task<T?>` / empty results over throwing business exceptions here
 - Async methods that hit EF must take `CancellationToken` and pass it to
   EF APIs (`FirstOrDefaultAsync(..., cancellationToken)`, …)
+- **Query style (required):** compose with **EF Core fluent method
+  syntax** on `DbSet` (`Where` / `OrderBy` / `ThenBy` / `Select` /
+  `ToArrayAsync`, …). Project in the query; pass `cancellationToken`
+  on the terminal async call. Prefer this over raw SQL strings and
+  over LINQ query syntax (`from x in … select`). Do not load full
+  entities into memory then filter with LINQ-to-Objects when EF can
+  do it. See Coding style → Repository queries.
 - **Register the model in `AppDbContext` (`Database.cs`)** — required for EF to create the table and keep it in sync via migrations:
   - Add `public DbSet<YourModel> YourModels => Set<YourModel>();`
   - Declare relationships / constraints in `OnModelCreating` when needed
@@ -438,6 +445,10 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
 - Do not stop `CancellationToken` at the route/controller: forward it to
   service → repository → EF / HTTP
 - Do not inject `HttpContext` into BLL/DAL “instead of” a token
+- Do not write repository access as raw SQL or LINQ query syntax when
+  a fluent EF chain (`Where` / `OrderBy` / `Select` / `To*Async`) works
+- Do not leave non-obvious features/methods uncommented — match the
+  `Example*` file-header / intent comment style (English)
 - Do not throw bare `Exception` for expected business failures (use
   `AppException` subtypes so clients get the right status, not 500)
 - Do not catch exceptions in every controller just to write HTTP status
@@ -574,7 +585,52 @@ services.AddDbContext<AppDbContext>(...);
 - Keep user-facing validation / error messages in **French**;
   everything else in English
 
+### Comments (when intent is not obvious)
+
+Comment features and non-obvious functions in **English**, in the same
+spirit as the `Example*` files (file-level `/** … */` that explain
+**why** / role of the piece, not a line-by-line rewrite of the code).
+
+- Add a short file header on new feature files (Routes, DTOs, Services,
+  Repositories, …) when the purpose is not obvious from the name alone
+- Comment methods / blocks when the rule, edge case, or design choice
+  is non-obvious
+- Do **not** comment the trivial (`// increment i`, getters, obvious
+  DI wiring)
+- Prefer the existing section markers (`// Imports`, `// Class`, …)
+  when editing nearby code
+
+Reference tone: `ExampleRoutes.cs`, `ExampleDTOs.cs`,
+`ExampleService.cs`.
+
+### Repository queries (EF Core fluent style)
+
+In repositories, write queries as **fluent method chains** on
+`DbSet` / `IQueryable`. Keep filtering, ordering, and projection in
+the database query; finish with an async materializer and the
+`CancellationToken`.
+
+**Prefer:**
+
+```csharp
+await db.HomeMemberships
+    .Where(m => m.HomeId == homeId && homesForUser.Contains(m.HomeId))
+    .OrderBy(m => m.User.Username)
+    .ThenBy(m => m.User.Id)
+    .Select(m => new HomeMember(m.User.Username, m.Role))
+    .ToArrayAsync(cancellationToken);
+```
+
+**Avoid:**
+
+- Raw SQL (`FromSqlRaw`, `ExecuteSqlRaw`, hand-written SQL strings)
+  unless there is a clear, documented reason
+- LINQ **query syntax** (`from m in db.HomeMemberships where … select`)
+- Loading a full list then filtering/sorting in memory when EF can
+  express it (`ToList()` then `.Where(...)` on the client)
+
 ---
+
 
 ## Commands
 
@@ -598,5 +654,7 @@ dotnet run --project backend.api
 3. Prefer a thin route + controller + interface service over shortcuts
 4. Always add DataAnnotations on new request DTOs and forward
    `CancellationToken` on async I/O
-5. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
+5. Comment non-obvious features/methods (English, `Example*` style);
+   use fluent EF queries in repositories
+6. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
 

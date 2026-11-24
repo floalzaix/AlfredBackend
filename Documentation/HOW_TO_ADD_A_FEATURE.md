@@ -203,11 +203,33 @@ Pass `cancellationToken` into EF (`FirstOrDefaultAsync`,
 
 **File to create:** `Backend.DAL/Repositories/DeviceRepository.cs`
 
-**Role:** real SQL/EF code. Only this layer talks to `AppDbContext`.
+**Role:** EF Core access only. Only this layer talks to `AppDbContext`.
 
 The class should implement `IDeviceRepository` and receive `AppDbContext`
 through its constructor (DI will provide it). Forward
 `cancellationToken` to every cancellable EF call.
+
+**Query style:** use **fluent method chains** on `DbSet` (modern EF
+style). Filter / order / project in the query, then materialize with
+`ToArrayAsync` / `FirstOrDefaultAsync` / … and the token.
+
+```csharp
+await db.HomeMemberships
+    .Where(m => m.HomeId == homeId && homesForUser.Contains(m.HomeId))
+    .OrderBy(m => m.User.Username)
+    .ThenBy(m => m.User.Id)
+    .Select(m => new HomeMember(m.User.Username, m.Role))
+    .ToArrayAsync(cancellationToken);
+```
+
+Prefer that over:
+
+- raw SQL strings (`FromSqlRaw`, …)
+- LINQ query syntax (`from m in db.… where … select …`)
+- loading everything then filtering in memory
+
+Add a short English file header (like `Example*`) when the repository’s
+role is not obvious from the name alone.
 
 ### 2.4 Register the repository
 
@@ -665,6 +687,29 @@ The JSON section name must match the string passed to `BindConfiguration`.
 
 ---
 
+## Comments (when things are not obvious)
+
+Mirror the `Example*` style: a short English `/** … */` file header that
+explains the **role / why** of the file, and comments on methods or
+blocks when the intent is not obvious.
+
+Do:
+
+- Comment new feature files (Routes, DTOs, Services, Repositories, …)
+  when a reader would not guess the purpose from the name alone
+- Comment non-obvious rules, edge cases, or design choices on functions
+- Keep comments in **English**
+
+Do not:
+
+- Comment every trivial line
+- Paste French into code comments (only user-facing error messages are French)
+
+Reference: `ExampleRoutes.cs`, `ExampleDTOs.cs`, `ExampleService.cs`.
+More detail: `AGENTS.md` (Coding style → Comments).
+
+---
+
 ## Golden rules (short)
 
 1. Copy `Example*`, then rename carefully
@@ -677,9 +722,13 @@ The JSON section name must match the string passed to `BindConfiguration`.
 8. Throw `AppException` subtypes for expected errors (not bare `Exception`)
 9. **Validate request DTOs** with DataAnnotations + French `ErrorMessage`
 10. **Propagate `CancellationToken`** route → controller → service → repo → EF
-11. Keep each file focused on its job
-12. Write code and comments in **English**; user-facing errors in **French**
+11. **Comment** non-obvious features/functions (English, `Example*` style)
+12. In repositories, use **fluent EF** (`Where` / `OrderBy` / `Select` /
+    `To*Async`) — not raw SQL or LINQ query syntax
+13. Keep each file focused on its job
+14. Write code and comments in **English**; user-facing errors in **French**
 
 If you are stuck, open the matching `Example*` / `Auth*` file for that
 layer and mirror it line by line with your feature name.
-More detail: `AGENTS.md` (CancellationToken + DTO validation sections).
+More detail: `AGENTS.md` (CancellationToken, DTO validation, comments,
+repository queries).

@@ -427,6 +427,9 @@ API/app containerization, CI/CD, and hosting strategy not defined yet.
 - Primary constructors preferred
 - Request DTOs: DataAnnotations + French `ErrorMessage` (mandatory)
 - Async I/O: propagate `CancellationToken` (route → … → repository/EF)
+- Comment non-obvious features/methods (English, `Example*` file-header style)
+- Repository queries: EF Core fluent chains (`Where` / `OrderBy` /
+  `Select` / `To*Async`), not raw SQL or LINQ query syntax
 - Project content (code, comments, docs, commits) in **English**
 - **Exception:** user-facing error / validation messages in **French**
 - Adding a feature: follow the `Example*` / `Auth*` template layer by layer
