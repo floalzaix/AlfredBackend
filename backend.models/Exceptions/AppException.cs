@@ -43,6 +43,17 @@ public class UnauthorizedException : AppException {
 }
 
 //
+//  ForbiddenException
+//
+
+public class ForbiddenException : AppException {
+    public ForbiddenException(
+        string message = "Accès refusé."
+    ) : base(message, 403, "Accès refusé") {
+    }
+}
+
+//
 //  NotFoundException
 //
 

@@ -42,6 +42,9 @@ public class AppDbContext(
     // public DbSet<MyExampleModel> MyExampleModels => Set<MyExampleModel>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
+    public DbSet<Household> Households => Set<Household>();
+    public DbSet<HouseholdMember> HouseholdMembers => Set<HouseholdMember>();
+    public DbSet<Room> Rooms => Set<Room>();
 
     // YOURS
 
@@ -75,5 +78,42 @@ public class AppDbContext(
             userToken.HasIndex(ut => ut.Jti).IsUnique();
             userToken.HasIndex(ut => ut.ExpiresAt);
         });
+
+        modelBuilder.Entity<Household>(household => {
+            household.Property(h => h.Name).HasMaxLength(100).IsRequired();
+            household.Property(h => h.InvitationCode).HasMaxLength(16);
+            household.HasIndex(h => h.InvitationCode).IsUnique();
+        });
+
+        modelBuilder.Entity<HouseholdMember>(member => {
+            member.HasKey(m => new { m.HouseholdId, m.UserId });
+            member.Property(m => m.Role)
+                .HasConversion<string>()
+                .HasMaxLength(16);
+            member.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(m => m.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            member.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Room>(room => {
+            room.Property(r => r.Name).HasMaxLength(100).IsRequired();
+            room.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(r => r.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // One room name per household.
+            room.HasIndex(r => new { r.HouseholdId, r.Name }).IsUnique();
+        });
+
+        // TODO (APP stories): when the Device model is added, make
+        // Device.RoomId a nullable FK to Room with
+        // .OnDelete(DeleteBehavior.SetNull). PIE-05 requires that
+        // deleting a room keeps its devices in the household,
+        // without a room.
     }
 }

@@ -9,7 +9,7 @@ side by side. You will mostly **copy that pattern** and rename it.
 Useful commands are listed in `commands.md`.
 
 If your feature needs the database, start the **dev PostgreSQL** first
-with `Backend.DAL/Dockerfile` (see the Docker section in `commands.md`
+with `backend.dal/Dockerfile` (see the Docker section in `commands.md`
 or the README).
 
 ---
@@ -36,19 +36,19 @@ You do **not** need to invent a new architecture. Follow the layers below.
 Browser / frontend
         │
         ▼
-1. Route          (URL + HTTP method)     Backend.API/Routes
+1. Route          (URL + HTTP method)     backend.api/Routes
         │
         ▼
-2. Controller     (glue: DTO → service)   Backend.API/Controllers
+2. Controller     (glue: DTO → service)   backend.api/Controllers
         │
         ▼
-3. Service        (business rules)        Backend.BLL/Services
+3. Service        (business rules)        backend.bll/Services
         │                                 (throw AppException on expected failures)
         ▼
-4. Repository     (talk to the database)  Backend.DAL/Interfaces + Repositories   ← only if you save data
+4. Repository     (talk to the database)  backend.dal/Interfaces + Repositories   ← only if you save data
         │
         ▼
-5. Model          (shape of the data)     Backend.Models
+5. Model          (shape of the data)     backend.models
 
 On error (any layer, uncaught):
         │
@@ -107,11 +107,11 @@ That way each file can already use the previous one.
 
 ## Step 1 — Model
 
-**File to create:** `Backend.Models/DeviceModels.cs`
+**File to create:** `backend.models/DeviceModels.cs`
 
 **Role:** describe the data. No logic. Only properties.
 
-Look at: `Backend.Models/ExampleModels.cs`
+Look at: `backend.models/ExampleModels.cs`
 
 Minimal shape:
 
@@ -139,7 +139,7 @@ Skip this whole step if your feature does not touch the database yet
 
 ### 2.1 Register the model in EF (required to persist it)
 
-**File to edit:** `Backend.DAL/Database.cs` (`AppDbContext`)
+**File to edit:** `backend.dal/Database.cs` (`AppDbContext`)
 
 Creating a C# model is not enough. You **must** register it on
 `AppDbContext` so Entity Framework:
@@ -159,15 +159,15 @@ Add relationships in `OnModelCreating` only when you need them
 Connection strings live under `DALConfig` in
 `appsettings.Development.json` (dev Docker DB on port `4040`) and
 `appsettings.Production.json` (fake prod example). Do not hardcode them.
-Start the DB with `Backend.DAL/Dockerfile` before running migrations
+Start the DB with `backend.dal/Dockerfile` before running migrations
 (see `commands.md`).
 
 ### 2.2 Repository interface
 
-**File to create:** `Backend.DAL/Interfaces/IDeviceRepository.cs`
+**File to create:** `backend.dal/Interfaces/IDeviceRepository.cs`
 
 **Role:** list the database operations the rest of the app is allowed to use.
-Same idea as `Backend.BLL/Interfaces` for services.
+Same idea as `backend.bll/Interfaces` for services.
 
 ```csharp
 using Backend.Models;
@@ -186,7 +186,7 @@ another business rule.
 
 ### 2.3 Repository implementation
 
-**File to create:** `Backend.DAL/Repositories/DeviceRepository.cs`
+**File to create:** `backend.dal/Repositories/DeviceRepository.cs`
 
 **Role:** real SQL/EF code. Only this layer talks to `AppDbContext`.
 
@@ -195,7 +195,7 @@ through its constructor (DI will provide it).
 
 ### 2.4 Register the repository
 
-**File to edit:** `Backend.DAL/DependencyInjection.cs`
+**File to edit:** `backend.dal/DependencyInjection.cs`
 
 Inside `AddDAL()`, add:
 
@@ -220,11 +220,11 @@ dotnet ef database update --project backend.dal --startup-project backend.api
 
 ## Step 3 — Service interface
 
-**File to create:** `Backend.BLL/Interfaces/IDeviceService.cs`
+**File to create:** `backend.bll/Interfaces/IDeviceService.cs`
 
 **Role:** declare what the business layer can do, without saying how.
 
-Look at: `Backend.BLL/Interfaces/IExampleService.cs`
+Look at: `backend.bll/Interfaces/IExampleService.cs`
 
 ```csharp
 using Backend.Models;
@@ -245,11 +245,11 @@ Why an interface?
 
 ## Step 4 — Service implementation
 
-**File to create:** `Backend.BLL/Services/DeviceService.cs`
+**File to create:** `backend.bll/Services/DeviceService.cs`
 
 **Role:** business logic (rules, calculations, orchestration).
 
-Look at: `Backend.BLL/Services/ExampleService.cs`
+Look at: `backend.bll/Services/ExampleService.cs`
 
 ```csharp
 using Backend.Models;
@@ -303,7 +303,7 @@ Rules:
 
 ## Step 5 — Register the service
 
-**File to edit:** `Backend.BLL/DependencyInjection.cs`
+**File to edit:** `backend.bll/DependencyInjection.cs`
 
 Inside `AddBLL()`, add:
 
@@ -318,11 +318,11 @@ If you forget this line, the app may compile but crash at runtime with
 
 ## Step 6 — DTOs
 
-**File to create:** `Backend.API/DTOs/DeviceDTOs.cs`
+**File to create:** `backend.api/DTOs/DeviceDTOs.cs`
 
 **Role:** validate and shape data that enters (or leaves) the HTTP API.
 
-Look at: `Backend.API/DTOs/ExampleDTOs.cs`
+Look at: `backend.api/DTOs/ExampleDTOs.cs`
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -349,11 +349,11 @@ Notes:
 
 ## Step 7 — Controller
 
-**File to create:** `Backend.API/Controllers/DeviceController.cs`
+**File to create:** `backend.api/Controllers/DeviceController.cs`
 
 **Role:** thin glue between the route and the service.
 
-Look at: `Backend.API/Controllers/ExampleController.cs`
+Look at: `backend.api/Controllers/ExampleController.cs`
 
 ```csharp
 using Backend.API.DTOs;
@@ -386,7 +386,7 @@ What it should **not** do:
 
 ## Step 8 — Register the controller
 
-**File to edit:** `Backend.API/DependencyInjection.cs`
+**File to edit:** `backend.api/DependencyInjection.cs`
 
 Inside `AddAPI()`, add:
 
@@ -401,11 +401,11 @@ the controller from DI.
 
 ## Step 9 — Routes
 
-**File to create:** `Backend.API/Routes/DeviceRoute.cs`
+**File to create:** `backend.api/Routes/DeviceRoute.cs`
 
 **Role:** expose the HTTP endpoint(s).
 
-Look at: `Backend.API/Routes/ExampleRoutes.cs`
+Look at: `backend.api/Routes/ExampleRoutes.cs`
 
 **REST naming:** route paths must stay **REST**. REST
 (Representational State Transfer) means the URL names a **resource**
@@ -482,7 +482,7 @@ Example URL after this step:
 
 ## Step 10 — Wire the routes in Program.cs
 
-**File to edit:** `Backend.API/Program.cs`
+**File to edit:** `backend.api/Program.cs`
 
 1. Make sure the using exists:
 
@@ -519,10 +519,10 @@ Examples:
 
 Reference files:
 
-- `Backend.Models/Exceptions/AppException.cs`
-- `Backend.API/GlobalExceptionHandler.cs`
-- `Backend.BLL/Services/AuthService.cs` (login credentials)
-- `Backend.API/Routes/AuthRoutes.cs` (Swagger `.ProducesProblem` examples)
+- `backend.models/Exceptions/AppException.cs`
+- `backend.api/GlobalExceptionHandler.cs`
+- `backend.bll/Services/AuthService.cs` (login credentials)
+- `backend.api/Routes/AuthRoutes.cs` (Swagger `.ProducesProblem` examples)
 
 You should **not** add a new exception handler per feature. Reuse the
 global one. Only add a new exception **type** if none of the existing
@@ -566,22 +566,22 @@ If something fails, check these common mistakes first:
 For a feature named `Device`, you typically touch:
 
 ```
-Backend.Models/
+backend.models/
   DeviceModels.cs
   Exceptions/AppException.cs          (shared — reuse, rarely edit)
 
-Backend.DAL/                          (only if persistence)
+backend.dal/                          (only if persistence)
   Database.cs                         (edit AppDbContext)
   Interfaces/IDeviceRepository.cs
   Repositories/DeviceRepository.cs
   DependencyInjection.cs              (edit)
 
-Backend.BLL/
+backend.bll/
   Interfaces/IDeviceService.cs
   Services/DeviceService.cs           (throw AppException subtypes)
   DependencyInjection.cs              (edit)
 
-Backend.API/
+backend.api/
   DTOs/DeviceDTOs.cs
   Controllers/DeviceController.cs
   Routes/DeviceRoute.cs
@@ -596,9 +596,9 @@ Backend.API/
 
 When a project needs settings (connection string, feature flags, …):
 
-1. Create `<Layer>Config.cs` in that project (see `Backend.DAL/DALConfig.cs`)
+1. Create `<Layer>Config.cs` in that project (see `backend.dal/DALConfig.cs`)
 2. Add DataAnnotations (`[Required]`, …) on properties you must validate
-3. Add the JSON section in `Backend.API/appsettings.json` and override per
+3. Add the JSON section in `backend.api/appsettings.json` and override per
    environment in `appsettings.Development.json` /
    `appsettings.Production.json`
 4. Bind it in that project’s `DependencyInjection.cs`:

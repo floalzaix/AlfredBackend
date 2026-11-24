@@ -81,9 +81,9 @@ Service (business rules; may throw `AppException`) → Repository
 
 | Piece | Role |
 | --- | --- |
-| `Backend.Models/Exceptions/AppException` (+ subtypes) | Expected errors with HTTP status + title |
+| `backend.models/Exceptions/AppException` (+ subtypes) | Expected errors with HTTP status + title |
 | `UnauthorizedException` / `NotFoundException` / `ConflictException` | 401 / 404 / 409 |
-| `Backend.API/GlobalExceptionHandler` | `IExceptionHandler`: maps `AppException` or returns generic 500 |
+| `backend.api/GlobalExceptionHandler` | `IExceptionHandler`: maps `AppException` or returns generic 500 |
 | `AddExceptionHandler` + `AddProblemDetails` + `UseExceptionHandler()` | Pipeline wiring |
 
 Services throw subtypes for expected failures; repositories should
@@ -106,7 +106,7 @@ and commit messages stay in **English**.
 | API docs | Swagger UI (Swashbuckle) + OpenAPI | In place (dev) |
 | ORM | Entity Framework Core 10 | In place |
 | Database | PostgreSQL (Npgsql 10.0.0) | Connection strings in appsettings |
-| Migrations | EF Core under `Backend.DAL/Migrations` | Users + UserTokens |
+| Migrations | EF Core under `backend.dal/Migrations` | Users + UserTokens |
 | Validation | DataAnnotations on DTOs and config | In place (`AddValidation`) |
 | Auth | JWT Bearer (local validation, no introspect server) | In place |
 | CORS | Policy `Frontend` from `Cors:AllowedOrigins` | In place |
@@ -118,9 +118,9 @@ and commit messages stay in **English**.
 
 | File | Registers |
 | --- | --- |
-| `Backend.DAL/DependencyInjection.cs` | `DALConfig`, `AppDbContext`, repositories |
-| `Backend.BLL/DependencyInjection.cs` | Services (`I*Service` → `*Service`) |
-| `Backend.API/DependencyInjection.cs` | Controllers, exception handler, `TokenCleanupBackgroundService` |
+| `backend.dal/DependencyInjection.cs` | `DALConfig`, `AppDbContext`, repositories |
+| `backend.bll/DependencyInjection.cs` | Services (`I*Service` → `*Service`) |
+| `backend.api/DependencyInjection.cs` | Controllers, exception handler, `TokenCleanupBackgroundService` |
 
 ### Adding configuration for a project
 
@@ -137,18 +137,18 @@ services.AddOptions<DALConfig>()
 
 4. Inject `IOptions<XXXConfig>` where values are needed
 
-Reference: `Backend.DAL/DALConfig.cs`.
+Reference: `backend.dal/DALConfig.cs`.
 
 ## 7. Data and database
 
-- `AppDbContext` (`Backend.DAL/Database.cs`) is the entity registry
+- `AppDbContext` (`backend.dal/Database.cs`) is the entity registry
 - To **persist** a model: create it in `Backend.Models`, then declare
   `DbSet<>` (and optional constraints in `OnModelCreating`) in `Database.cs`
 - Without that registration, EF will not create/update a table for the model
-- EF Core migrations live in `Backend.DAL/Migrations` and are applied from
+- EF Core migrations live in `backend.dal/Migrations` and are applied from
   `Backend.API` as startup project
 - Connection strings live under `DALConfig` (no secrets hardcoded in code)
-- **Dev database**: `Backend.DAL/Dockerfile` (PostgreSQL, port `4040`,
+- **Dev database**: `backend.dal/Dockerfile` (PostgreSQL, port `4040`,
   database `alfred_db`). Commands in `commands.md` / `README.md`.
   Dev-only credentials; do not use that image in production.
 

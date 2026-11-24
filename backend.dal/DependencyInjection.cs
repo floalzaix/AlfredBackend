@@ -69,6 +69,8 @@ public static class DependencyInjection {
         //
 
         services.AddScoped<IAuthRepo, AuthRepo>();
+        services.AddScoped<IHouseholdRepository, HouseholdRepository>();
+        services.AddScoped<IRoomRepository, RoomRepository>();
 
         return services;
     }

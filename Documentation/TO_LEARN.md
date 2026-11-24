@@ -9,7 +9,7 @@
 - Understand dependency injection and why it is useful
 - Definition of database migrations
 - Understand how database integration works in an application
-- Run the local PostgreSQL with `Backend.DAL/Dockerfile` (see `commands.md`)
+- Run the local PostgreSQL with `backend.dal/Dockerfile` (see `commands.md`)
 - JWT Bearer auth: register/login → `access_token` → `Authorization`
   header; path base `/api`; local validation (no introspection server);
   token expiry (`JwtConfig.ExpirationTime`); policies `User` / `Admin`;
