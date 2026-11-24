@@ -136,12 +136,87 @@ next layer’s `Add*()` method.
 
 ### Request flow
 
-1. **Route** (`Backend.API/Routes`) — exposes the HTTP endpoint, binds input, injects the controller
-2. **Controller** (`Backend.API/Controllers`) — maps DTO → service call, returns the result
-3. **Service** (`Backend.BLL/Services` via interface) — business rules; throws `AppException` subtypes for expected failures
-4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) — database access when needed (prefer returning `null` / empty over throwing business errors)
+1. **Route** (`Backend.API/Routes`) — exposes the HTTP endpoint, binds input
+   (validated DTO) + `CancellationToken`, injects the controller
+2. **Controller** (`Backend.API/Controllers`) — maps DTO → service call,
+   forwards the same `CancellationToken`
+3. **Service** (`Backend.BLL/Services` via interface) — business rules;
+   throws `AppException` subtypes for expected failures; forwards the token
+4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) —
+   database access with the token on EF async APIs (prefer returning
+   `null` / empty over throwing business errors)
 5. **Model** (`Backend.Models`) — shared shape of domain data
-6. **On error** — uncaught exceptions bubble to `GlobalExceptionHandler` (`IExceptionHandler`): `AppException` → matching HTTP status + ProblemDetails; anything else → 500
+6. **On error** — uncaught exceptions bubble to `GlobalExceptionHandler`
+   (`IExceptionHandler`): `AppException` → matching HTTP status +
+   ProblemDetails; anything else → 500
+
+---
+
+## CancellationToken (mandatory on async I/O)
+
+Propagate `CancellationToken` through the full stack on async work that
+touches I/O (DB, HTTP, long awaits):
+
+```
+Route → Controller → Service (interface + impl) → Repository (interface + impl)
+  → EF / HttpClient / other cancellable APIs
+```
+
+Rules:
+
+- Accept `CancellationToken cancellationToken` on the route handler,
+  controller method, service method, and repository method
+- Pass **the same** token down; do not create a new token per layer
+- Pass it into EF Core (`ToListAsync`, `FirstOrDefaultAsync`,
+  `SaveChangesAsync`, `AnyAsync`, `ExecuteDeleteAsync`, …) and other
+  cancellable APIs
+- `CancellationToken` is `System.Threading` (BCL), **not** ASP.NET.
+  Putting it on BLL/DAL signatures does **not** break layering. Do
+  **not** pass `HttpContext` / `IHttpContextAccessor` into BLL or DAL
+- Sync or trivially CPU-only helpers may omit it; every new async
+  feature path with I/O must include it
+- Background services use their own `stoppingToken` (see
+  `TokenCleanupBackgroundService`), not the HTTP request token
+
+Why: if the client disconnects, work should stop instead of keeping
+orphan DB/HTTP work alive.
+
+---
+
+## DTO validation with DataAnnotations (mandatory)
+
+**Do not skip this.** Many agents ship bare DTO properties with no
+attributes. In this project, request DTOs **must** validate input with
+DataAnnotations on the properties.
+
+Rules:
+
+- Put validation on **API DTOs** (`Backend.API/DTOs`), not by reinventing
+  the same checks only inside the service
+- Annotate every required / constrained field:
+  `[Required]`, `[MinLength]`, `[MaxLength]`, `[EmailAddress]`,
+  `[RegularExpression]`, `[Range]`, …
+- Set **`ErrorMessage` in French** on each attribute (frontend display)
+- Prefer `sealed` request/response DTOs when inheritance is unused
+- Keep `builder.Services.AddValidation();` in `Program.cs` (already
+  present) so Minimal APIs reject invalid bodies/queries with 400
+- Document invalid input on routes with `.ProducesValidationProblem()`
+- Business rules that need DB state (duplicate email, …) stay in the
+  BLL as `AppException` — annotations cover **shape / format** of the
+  request
+
+Example (see `AuthDTOs.cs` / `ExampleDTOs.cs`):
+
+```csharp
+public sealed class RegisterRequestDTO {
+    [Required(ErrorMessage = "L'email est requis !")]
+    [EmailAddress(ErrorMessage = "L'email n'est pas valide !")]
+    public string Email { get; set; } = string.Empty;
+}
+```
+
+GET query DTOs still need annotations **and** `[AsParameters]` on the
+route parameter (and `[FromQuery]` on properties when needed).
 
 ---
 
@@ -232,18 +307,23 @@ Feature: <Name>
 [ ] 5. Register repository in Backend.DAL/DependencyInjection.cs
 [ ] 6. EF migration (if persistence)
 [ ] 7. Service interface in Backend.BLL/Interfaces
+       (async I/O methods take CancellationToken)
 [ ] 8. Service implementation in Backend.BLL/Services
-       (throw AppException subtypes for expected errors)
+       (throw AppException subtypes for expected errors;
+        forward CancellationToken)
 [ ] 9. Register service in Backend.BLL/DependencyInjection.cs
 [ ] 10. Request/response DTOs in Backend.API/DTOs
+        (DataAnnotations + French ErrorMessage on every constrained field)
 [ ] 11. Controller in Backend.API/Controllers
+        (forward CancellationToken to the service)
 [ ] 12. Register controller in Backend.API/DependencyInjection.cs
 [ ] 13. Routes in Backend.API/Routes + Map* in Program.cs
+        (bind CancellationToken; .ProducesValidationProblem on DTOs)
 [ ] 14. RequireAuthorization on private routes (User / Admin)
 [ ] 15. Expected errors covered (AppException / existing subtypes)
        + documented on routes with .Produces / .ProducesProblem
 [ ] 16. Build and smoke-test happy path + error paths
-       (Bearer token in Swagger when protected)
+       (Bearer token in Swagger when protected; bad DTO → 400)
 ```
 
 ### Step details
@@ -260,6 +340,8 @@ Feature: <Name>
 - Interface: `I<Feature>Repository` in `Interfaces/` (same pattern as BLL)
 - Implementation: `<Feature>Repository` in `Repositories/`
 - Prefer `Task<T?>` / empty results over throwing business exceptions here
+- Async methods that hit EF must take `CancellationToken` and pass it to
+  EF APIs (`FirstOrDefaultAsync(..., cancellationToken)`, …)
 - **Register the model in `AppDbContext` (`Database.cs`)** — required for EF to create the table and keep it in sync via migrations:
   - Add `public DbSet<YourModel> YourModels => Set<YourModel>();`
   - Declare relationships / constraints in `OnModelCreating` when needed
@@ -272,6 +354,7 @@ Feature: <Name>
 
 - Interface: `I<Feature>Service` in `Interfaces/`
 - Implementation: `<Feature>Service` in `Services/`, depends on repository interfaces (not concrete types)
+- Async I/O methods take `CancellationToken` and forward it to the repo
 - Register: `services.AddScoped<I<Feature>Service, <Feature>Service>();`
 - For each expected failure, `throw` an `AppException` subtype
   (`NotFoundException`, `ConflictException`, `UnauthorizedException`, …).
@@ -280,17 +363,21 @@ Feature: <Name>
 
 #### 10–13. HTTP edge — `Backend.API`
 
-**DTOs** (`DTOs/<Feature>DTOs.cs`):
+**DTOs** (`DTOs/<Feature>DTOs.cs`) — **required, do not omit:**
 
-- Validate input with DataAnnotations (`[Required]`, `[MinLength]`, …)
-- Prefer dedicated request/response DTOs; do not expose internal wiring through the API contract when a response DTO is clearer
-- Enable validation in the app with `builder.Services.AddValidation();` when using DataAnnotations on Minimal APIs
+- Validate **every** constrained input field with DataAnnotations
+  (`[Required]`, `[MinLength]`, `[EmailAddress]`, …)
+- Always set **French** `ErrorMessage` on those attributes
+- Prefer dedicated `sealed` request/response DTOs; do not expose
+  internal wiring through the API contract when a response DTO is clearer
+- Do not leave a request DTO as a bare property bag with no annotations
+- `builder.Services.AddValidation();` is already in `Program.cs`
 
 **Controller** (`Controllers/<Feature>Controller.cs`):
 
 - Inject `I<Feature>Service` (interface, not concrete class)
-- Accept DTOs, call the service, return the result
-- No direct database access
+- Accept DTOs + `CancellationToken`, call the service, return the result
+- Forward the token to the service; no direct database access
 
 **DI** (`DependencyInjection.cs`):
 
@@ -301,6 +388,8 @@ Feature: <Name>
 - Static class with `Map<Feature>Routes(this IEndpointRouteBuilder …)`
 - Use `MapGroup("/<feature>")` with a **REST** resource name (noun, usually plural)
 - Inject the controller from DI; keep handlers thin
+- Bind `CancellationToken cancellationToken` on async handlers and
+  pass it to the controller
 - Call `app.Map<Feature>Routes();` from `Program.cs`
 - Protect private endpoints with `.RequireAuthorization("User")` or
   `"Admin"` (JWT Bearer — see Authentication section above)
@@ -344,6 +433,11 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
 - Do not leave private routes open; add `.RequireAuthorization(...)`
 - Do not add an external JWT introspection / verification server; validation
   stays local in the API
+- Do not ship request DTOs **without** DataAnnotations + French
+  `ErrorMessage` (shape/format checks belong on the DTO)
+- Do not stop `CancellationToken` at the route/controller: forward it to
+  service → repository → EF / HTTP
+- Do not inject `HttpContext` into BLL/DAL “instead of” a token
 - Do not throw bare `Exception` for expected business failures (use
   `AppException` subtypes so clients get the right status, not 500)
 - Do not catch exceptions in every controller just to write HTTP status
@@ -473,6 +567,8 @@ services.AddDbContext<AppDbContext>(...);
 - Prefer primary constructors for Controllers/Services when dependencies are simple
 - Prefer interfaces for BLL and DAL collaborators (testability / mocking)
 - Prefer `sealed` on DTOs when inheritance is not needed
+- Annotate request DTO fields with DataAnnotations + French `ErrorMessage`
+- Propagate `CancellationToken` on async I/O (route → … → repository)
 - Keep routes as extension methods on `IEndpointRouteBuilder`
 - Match existing file headers and section comments style when editing nearby code
 - Keep user-facing validation / error messages in **French**;
@@ -497,8 +593,10 @@ dotnet run --project backend.api
 
 ## When unsure
 
-1. Copy the structure of the closest `Example*` files
+1. Copy the structure of the closest `Example*` / `Auth*` files
 2. Respect the dependency table above
 3. Prefer a thin route + controller + interface service over shortcuts
-4. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
+4. Always add DataAnnotations on new request DTOs and forward
+   `CancellationToken` on async I/O
+5. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
 

@@ -78,6 +78,15 @@ Expected failures use `AppException` subtypes → ProblemDetails via
 `GlobalExceptionHandler`. **User-facing** validation and error
 messages are in **French**; code and docs stay in English.
 
+### Input validation and cancellation
+
+- Request DTOs use **DataAnnotations** with French `ErrorMessage`
+  (`AddValidation()` in `Program.cs`) — see `AuthDTOs.cs`
+- Async I/O propagates **`CancellationToken`** from the route through
+  controller → service → repository → EF
+
+Details: `Documentation/AGENTS.md`.
+
 ### Naming convention
 
 | Kind | Convention | Example |

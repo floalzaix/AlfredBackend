@@ -34,6 +34,11 @@ revocation, Example demo route, Angular auth UI (login / register).
 - Each layer declares its own DI registrations
 - Thin routes; business logic only in the BLL
 - **REST** resource naming for feature routes
+- **DTO validation**: DataAnnotations on request DTOs with French
+  `ErrorMessage` (`AddValidation()` in `Program.cs`)
+- **CancellationToken**: propagate request abort through
+  Route → Controller → Service → Repository → EF / HTTP (BCL type;
+  does not couple BLL/DAL to ASP.NET)
 - **Centralized error handling**: expected failures via `AppException`
   subtypes; unexpected failures → 500 ProblemDetails
 - Frontend: feature folders + thin routable pages; HTTP via a shared
@@ -72,10 +77,17 @@ Backend.Models  Domain models + Exceptions
 
 DI is **chained**: `Program.cs` → `AddAPI()` → `AddBLL()` → `AddDAL()`.
 
-**Request flow**: Route (binding) → Controller (DTO → service call) →
-Service (business rules; may throw `AppException`) → Repository
-(DB access) → Model. Uncaught exceptions → `GlobalExceptionHandler`
-→ ProblemDetails.
+**Request flow**: Route (binding + validated DTO + `CancellationToken`)
+→ Controller (DTO → service call, forward token) → Service (business
+rules; may throw `AppException`; forward token) → Repository (DB access
+with token on EF async APIs) → Model. Uncaught exceptions →
+`GlobalExceptionHandler` → ProblemDetails.
+
+**Input validation:** request DTOs in `Backend.API/DTOs` must use
+DataAnnotations (`[Required]`, `[MinLength]`, `[EmailAddress]`, …)
+with French `ErrorMessage`. Do not leave DTOs unannotated. Invalid
+input → 400 (`.ProducesValidationProblem()`). Business/DB rules stay
+in the BLL as `AppException`.
 
 **Error handling**
 
@@ -184,10 +196,15 @@ create/delete/check tokens, cleanup expired tokens).
   + HTTP methods for actions (`GET /devices`, `POST /devices`, …)
   Avoid verb paths (`/getDevices`). Nested resources are fine when ownership
   is clear (`/homes/{id}/rooms`)
-- Request DTOs are dedicated and `sealed`; GET DTOs use `[AsParameters]`
+- Request DTOs are dedicated and `sealed`, with **DataAnnotations** and
+  French `ErrorMessage` on every constrained field; GET DTOs use
+  `[AsParameters]`
+- Async handlers bind `CancellationToken` and forward it through
+  controller → service → repository → EF
 - Document expected statuses with `.Produces` / `.ProducesValidationProblem`
   / `.ProducesProblem` for Swagger
 - Reference demo feature: `Example` (path `/example/hello_world` is not REST)
+- Reference validated DTOs: `AuthDTOs.cs`, `ExampleDTOs.cs`
 
 | Method | Route (after `/api`) | Auth | Description |
 | --- | --- | --- | --- |
@@ -294,7 +311,8 @@ Policy name: **`Frontend`**. Origins come from configuration:
 | HTTPS | Redirection enabled |
 | Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |
-| Input validation | DataAnnotations on DTOs; `AddValidation()` in `Program.cs` |
+| Input validation | DataAnnotations on DTOs (French `ErrorMessage`); `AddValidation()` in `Program.cs` |
+| Request cancellation | `CancellationToken` propagated to services/repos/EF |
 
 ## 10. Frontend technical architecture
 
@@ -407,6 +425,8 @@ API/app containerization, CI/CD, and hosting strategy not defined yet.
 - `I` prefix for interfaces, `Async` suffix for async methods,
   `Is`/`Has`/`Can` for booleans
 - Primary constructors preferred
+- Request DTOs: DataAnnotations + French `ErrorMessage` (mandatory)
+- Async I/O: propagate `CancellationToken` (route → … → repository/EF)
 - Project content (code, comments, docs, commits) in **English**
 - **Exception:** user-facing error / validation messages in **French**
 - Adding a feature: follow the `Example*` / `Auth*` template layer by layer
