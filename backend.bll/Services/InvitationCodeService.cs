@@ -7,6 +7,10 @@ using Backend.Models.Exceptions;
 namespace Backend.BLL.Services;
 
 public class InvitationCodeService(IInvitationCodeRepository repository) : IInvitationCodeService {
+    public async Task<Guid> JoinAsync(string invitationCode, Guid userId) =>
+        await repository.AddMemberByCodeAsync(invitationCode.ToUpperInvariant(), userId)
+            ?? throw new NotFoundException("Code d’invitation introuvable.");
+
     public async Task<string> GetOrGenerateAsync(Guid householdId, Guid userId) {
         while (true) {
             var state = await repository.GetStateAsync(householdId, userId)
