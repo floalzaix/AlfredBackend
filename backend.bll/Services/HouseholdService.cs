@@ -7,6 +7,13 @@ namespace Backend.BLL.Services;
 
 public class HouseholdService(IHouseholdRepo householdRepository) : IHouseholdService
 {
+    public Task<IReadOnlyList<HouseholdListItem>> GetHouseholdsForUserAsync(
+        Guid userId, CancellationToken cancellationToken = default)
+    {
+        return householdRepository.GetHouseholdsForUserAsync(userId, cancellationToken);
+    }
+
+
     public async Task<Household> CreateHouseholdAsync(
         string name, Guid creatorUserId, CancellationToken cancellationToken = default)
     {

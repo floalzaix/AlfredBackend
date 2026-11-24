@@ -6,6 +6,27 @@ namespace Backend.API.Controllers;
 
 public class HouseholdController(IHouseholdService householdService)
 {
+    public async Task<IResult> List(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
+    {
+        var userIdValue = user.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(userIdValue, out var userId))
+            return Results.Unauthorized();
+
+        var households = await householdService.GetHouseholdsForUserAsync(
+            userId, cancellationToken);
+
+        var response = households.Select(household =>
+            new HouseholdListItemResponseDTO(
+                household.Id,
+                household.Name,
+                household.CreatedAt,
+                household.Role.ToString()));
+
+        return Results.Ok(response);
+    }
+
     public async Task<IResult> Create(
         CreateHouseholdRequestDTO request,
         ClaimsPrincipal user,

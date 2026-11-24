@@ -37,3 +37,9 @@ public class HouseholdMember
 
     public User User { get; set; } = null!;
 }
+
+public record HouseholdListItem(
+    Guid Id,
+    string Name,
+    DateTime CreatedAt,
+    HouseholdRole Role);

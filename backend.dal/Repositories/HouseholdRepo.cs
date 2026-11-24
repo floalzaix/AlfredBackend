@@ -6,6 +6,23 @@ namespace Backend.DAL.Repositories;
 
 public class HouseholdRepo(AppDbContext db) : IHouseholdRepo
 {
+
+    public async Task<IReadOnlyList<HouseholdListItem>> GetHouseholdsForUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await db.HouseholdMembers
+            .AsNoTracking()
+            .Where(member => member.UserId == userId)
+            .OrderByDescending(member => member.Household.CreatedAt)
+            .Select(member => new HouseholdListItem(
+                member.Household.Id,
+                member.Household.Name,
+                member.Household.CreatedAt,
+                member.Role))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<Household> CreateHouseholdWithAdminAsync(
         Household household,
         HouseholdMember adminMembership,

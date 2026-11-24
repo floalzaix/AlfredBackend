@@ -8,3 +8,9 @@ public record HouseholdCreatedResponseDTO(
     string? InvitationCode,
     DateTime CreatedAt,
     string Role);
+
+public record HouseholdListItemResponseDTO(
+    Guid Id,
+    string Name,
+    DateTime CreatedAt,
+    string Role);
