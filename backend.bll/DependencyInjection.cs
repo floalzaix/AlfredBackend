@@ -28,9 +28,12 @@
  */
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Identity;
 using Backend.BLL.Interfaces;
 using Backend.BLL.Services;
 using Backend.DAL;
+using Backend.Models;
+using Backend.DAL.Interfaces;
 
 namespace Backend.BLL;
 
@@ -42,6 +45,12 @@ public static class DependencyInjection {
 
     public static IServiceCollection AddBLL(this IServiceCollection services) {
         services.AddDAL();
+
+        // Adding the JWT configuration file to the app
+        services.AddOptions<JwtConfig>()
+            .BindConfiguration("JwtConfig")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // ex : services.AddScoped<IService, Service>();
@@ -59,6 +68,8 @@ public static class DependencyInjection {
         //
 
         services.AddScoped<IExampleService, ExampleService>();
+        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddScoped<IAuthService, AuthService>();
 
         return services;
     }

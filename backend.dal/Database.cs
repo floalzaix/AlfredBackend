@@ -24,6 +24,7 @@
 //
 
 using Microsoft.EntityFrameworkCore;
+using Backend.Models;
 
 namespace Backend.DAL;
 
@@ -39,6 +40,8 @@ public class AppDbContext(
     //
 
     // public DbSet<MyExampleModel> MyExampleModels => Set<MyExampleModel>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
 
     // YOURS
 
@@ -56,6 +59,21 @@ public class AppDbContext(
         //         .OnDelete(DeleteBehavior.Restrict); <- Could be DeleteBehavior.Cascade too
         // });
 
-        // YOURS
+        modelBuilder.Entity<User>(user => {
+            user.HasIndex(u => u.Email).IsUnique();
+            user.Property(u => u.Username).HasMaxLength(64);
+            user.Property(u => u.Email).HasMaxLength(256);
+            user.Property(u => u.PasswordHash).HasMaxLength(512);
+            user.Property(u => u.Role).HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<UserToken>(userToken => {
+            userToken.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(ut => ut.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            userToken.HasIndex(ut => ut.Jti).IsUnique();
+            userToken.HasIndex(ut => ut.ExpiresAt);
+        });
     }
 }

@@ -27,7 +27,7 @@
  *     repetitive manual object creation and wiring.
  */
 
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authorization;
 using Backend.API.Controllers;
 using Backend.BLL;
 
@@ -59,6 +59,36 @@ public static class DependencyInjection {
         //
 
         services.AddScoped<ExampleController>();
+        services.AddScoped<AuthController>();
+
+        //
+        //  Authorization registry
+        //
+
+        services.AddScoped<IAuthorizationHandler, ActiveJtiHandler>();
+
+        services.AddAuthorizationBuilder()
+            .AddPolicy("User", policy => {
+                policy.RequireRole("User", "Admin");
+                policy.AddRequirements(new ActiveJtiRequirement());
+            })
+            .AddPolicy("Admin", policy => {
+                policy.RequireRole("Admin");
+                policy.AddRequirements(new ActiveJtiRequirement());
+            });
+
+        //
+        //  Exception handler
+        //
+        
+        services.AddExceptionHandler<GlobalExceptionHandler>();
+        services.AddProblemDetails();
+
+        //
+        //  Hosted services
+        //
+
+        services.AddHostedService<TokenCleanupBackgroundService>();
 
         return services;
     }

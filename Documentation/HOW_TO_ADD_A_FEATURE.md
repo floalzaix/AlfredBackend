@@ -43,12 +43,18 @@ Browser / frontend
         │
         ▼
 3. Service        (business rules)        Backend.BLL/Services
-        │
+        │                                 (throw AppException on expected failures)
         ▼
 4. Repository     (talk to the database)  Backend.DAL/Interfaces + Repositories   ← only if you save data
         │
         ▼
 5. Model          (shape of the data)     Backend.Models
+
+On error (any layer, uncaught):
+        │
+        ▼
+   GlobalExceptionHandler                 Backend.API
+   → ProblemDetails JSON (401 / 404 / 409 / … or 500)
 ```
 
 Rule of thumb:
@@ -56,9 +62,11 @@ Rule of thumb:
 - **Route** = “where is the door?”
 - **DTO** = “what data is allowed to enter?”
 - **Controller** = “who do I call next?”
-- **Service** = “what is the real work?”
+- **Service** = “what is the real work?” (+ expected error cases)
 - **Repository** = “how do I read/write the database?”
 - **Model** = “what does this data look like inside the app?”
+- **AppException** = “this failure is expected; map it to a proper HTTP status”
+- **GlobalExceptionHandler** = “turn uncaught exceptions into ProblemDetails”
 
 ---
 
@@ -79,14 +87,17 @@ Replace `Device` with your own name in every file.
 [ ] Step 1  — Model
 [ ] Step 2  — Repository (+ database)   [skip if no DB yet]
 [ ] Step 3  — Service interface
-[ ] Step 4  — Service implementation
+[ ] Step 4  — Service implementation (+ AppException for expected errors)
 [ ] Step 5  — Register the service (BLL DI)
 [ ] Step 6  — DTOs
 [ ] Step 7  — Controller
 [ ] Step 8  — Register the controller (API DI)
-[ ] Step 9  — Routes
+[ ] Step 9  — Routes (+ RequireAuthorization when private)
 [ ] Step 10 — Map the routes in Program.cs
-[ ] Step 11 — Build and test
+[ ] Step 11 — Review expected error paths + document them in Swagger
+              (.Produces / .ProducesProblem on routes)
+[ ] Step 12 — Build and test happy path + error paths
+              (Bearer JWT in Swagger if protected)
 ```
 
 Work **from the bottom of the stack upward** (model → … → route).
@@ -169,6 +180,10 @@ public interface IDeviceRepository {
 }
 ```
 
+Prefer returning `Device?` (or empty lists) when nothing is found.
+Let the **service** decide whether that is a `NotFoundException` or
+another business rule.
+
 ### 2.3 Repository implementation
 
 **File to create:** `Backend.DAL/Repositories/DeviceRepository.cs`
@@ -197,8 +212,8 @@ When the model is ready, create and apply a migration
 (see `commands.md`):
 
 ```bash
-dotnet ef migrations add AddDevice --project Backend.DAL --startup-project Backend.API
-dotnet ef database update --project Backend.DAL --startup-project Backend.API
+dotnet ef migrations add AddDevice --project backend.dal --startup-project backend.api
+dotnet ef database update --project backend.dal --startup-project backend.api
 ```
 
 ---
@@ -238,35 +253,51 @@ Look at: `Backend.BLL/Services/ExampleService.cs`
 
 ```csharp
 using Backend.Models;
+using Backend.Models.Exceptions;
 using Backend.BLL.Interfaces;
+using Backend.DAL.Interfaces;
 
 namespace Backend.BLL.Services;
 
-public class DeviceService : IDeviceService {
-    public Device GetDevice(string name) {
-        return new Device {
-            Id = Guid.NewGuid(),
-            Name = name
-        };
+public class DeviceService(
+    IDeviceRepository _deviceRepository
+) : IDeviceService {
+    public async Task<Device> GetDeviceAsync(Guid id) {
+        Device? device = await _deviceRepository.GetByIdAsync(id);
+
+        if (device is null) {
+            throw new NotFoundException("Appareil introuvable.");
+        }
+
+        return device;
     }
 }
 ```
 
-If you have a repository, inject it in the constructor:
+If you have a repository, inject it in the constructor (as above) and
+call it from your methods.
 
-```csharp
-public class DeviceService(
-    IDeviceRepository _deviceRepository
-) : IDeviceService {
-    // call _deviceRepository inside your methods
-}
-```
+**Expected errors:** list what can go wrong for the user (not found,
+duplicate name, bad credentials, …). For each case, throw an
+`AppException` subtype from `Backend.Models.Exceptions` with a
+**French** message (shown in the frontend):
+
+| Exception | HTTP status | Example message |
+| --- | --- | --- |
+| `UnauthorizedException` | 401 | `"Mot de passe invalide."` |
+| `NotFoundException` | 404 | `"Appareil introuvable."` |
+| `ConflictException` | 409 | `"Email déjà utilisé."` |
+
+You do **not** catch these in the controller. They bubble up to
+`GlobalExceptionHandler`, which returns ProblemDetails JSON.
 
 Rules:
 
 - Put business decisions here
 - Do **not** read HTTP details here (no DTOs from the API project)
 - Do **not** use `AppDbContext` directly here (use the repository)
+- Do **not** throw bare `new Exception("…")` for expected cases
+  (that becomes a 500)
 
 ---
 
@@ -301,8 +332,8 @@ namespace Backend.API.DTOs;
 
 public sealed class GetDeviceDTO {
     [FromQuery]
-    [Required(ErrorMessage = "The name is needed !")]
-    [MinLength(1, ErrorMessage = "The name must not be empty !")]
+    [Required(ErrorMessage = "Le nom est requis.")]
+    [MinLength(1, ErrorMessage = "Le nom ne doit pas être vide.")]
     public string Name { get; init; } = string.Empty;
 }
 ```
@@ -395,6 +426,7 @@ are fine when ownership is clear (`/homes/{homeId}/rooms`). The Example
 ```csharp
 using Backend.API.Controllers;
 using Backend.API.DTOs;
+using Backend.Models;
 
 namespace Backend.API.Routes;
 
@@ -407,10 +439,34 @@ public static class DeviceRoutes {
             [AsParameters] GetDeviceDTO dto
         ) => {
             return controller.GetDevice(dto);
-        });
+        })
+        .RequireAuthorization("User")
+        .Produces<Device>(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status404NotFound);
     }
 }
 ```
+
+Document each **expected** status in Swagger with `.Produces` /
+`.ProducesValidationProblem` (invalid DTO → 400) /
+`.ProducesProblem` (ProblemDetails from `GlobalExceptionHandler`).
+Include `401` / `403` when the route uses `.RequireAuthorization(...)`.
+`AddValidation()` is already registered in `Program.cs`.
+
+**Auth (JWT Bearer):** protected routes need
+`.RequireAuthorization("User")` or `"Admin"`. The client sends
+`Authorization: Bearer <access_token>` (token from
+`POST /api/auth/login` or `POST /api/auth/register`). There is
+**no external verification server** — the API validates the JWT
+locally and checks that the `jti` is still active (logout revokes
+it via `POST /api/auth/logout`). Current user: `GET /api/auth/me`.
+Token lifetime: `JwtConfig.ExpirationTime` minutes. Expired
+`UserToken` rows are cleaned by `TokenCleanupBackgroundService`.
+CORS allows the SPA at `http://localhost:8080`. See `DAT.md` §9 /
+`AGENTS.md` (Authentication).
 
 Important binding rule:
 
@@ -447,14 +503,49 @@ new feature (and register the new types in each layer’s
 
 ---
 
-## Step 11 — Build and test
+## Step 11 — Review expected error paths
+
+Before testing, write down the failure cases for your feature and check
+that the service throws the right `AppException` subtype. Then document
+those statuses on the route with `.Produces` / `.ProducesProblem` so
+Swagger shows them.
+
+Examples:
+
+- Get missing id → `NotFoundException` → client sees **404** ProblemDetails
+- Create duplicate → `ConflictException` → **409**
+- Bad login → `UnauthorizedException` → **401** (French message)
+- Protected route without / with revoked token → **401** / **403**
+
+Reference files:
+
+- `Backend.Models/Exceptions/AppException.cs`
+- `Backend.API/GlobalExceptionHandler.cs`
+- `Backend.BLL/Services/AuthService.cs` (login credentials)
+- `Backend.API/Routes/AuthRoutes.cs` (Swagger `.ProducesProblem` examples)
+
+You should **not** add a new exception handler per feature. Reuse the
+global one. Only add a new exception **type** if none of the existing
+subtypes fit.
+
+---
+
+## Step 12 — Build and test
 
 ```bash
 dotnet build
-dotnet run --project Backend.API
+dotnet run --project backend.api
 ```
 
-Then open Swagger (development) and try your new route.
+API listens on `http://localhost:5050` with path base `/api`.
+Open Swagger (development) and try your new route under `/api/...`.
+
+If the route is protected: call `POST /api/auth/login` (or register),
+copy `access_token`, authorize in Swagger with the `bearer` scheme
+(paste the JWT **without** the `Bearer` prefix), then call your route.
+
+Also test at least one **error path** (wrong id, bad body, …) and check
+that the status code is not a blind 500 when the failure was expected.
 
 If something fails, check these common mistakes first:
 
@@ -463,7 +554,10 @@ If something fails, check these common mistakes first:
 | `Unable to resolve service for type '…'` | Missing line in a `DependencyInjection.cs` |
 | `Body was inferred but the method does not allow…` | Missing `[AsParameters]` on a GET DTO |
 | Project / namespace errors | Wrong folder or forgotten `using` |
-| Validation never rejects bad input | `AddValidation()` not registered in `Program.cs` |
+| Validation never rejects bad input | `AddValidation()` missing in `Program.cs` (already present in this project) |
+| `401 Unauthorized` | Missing / expired Bearer token, or route not authorized |
+| `403 Forbidden` | Valid token but wrong role for the policy |
+| Expected business error returns `500` | Threw bare `Exception` instead of an `AppException` subtype |
 
 ---
 
@@ -474,6 +568,7 @@ For a feature named `Device`, you typically touch:
 ```
 Backend.Models/
   DeviceModels.cs
+  Exceptions/AppException.cs          (shared — reuse, rarely edit)
 
 Backend.DAL/                          (only if persistence)
   Database.cs                         (edit AppDbContext)
@@ -483,13 +578,14 @@ Backend.DAL/                          (only if persistence)
 
 Backend.BLL/
   Interfaces/IDeviceService.cs
-  Services/DeviceService.cs
+  Services/DeviceService.cs           (throw AppException subtypes)
   DependencyInjection.cs              (edit)
 
 Backend.API/
   DTOs/DeviceDTOs.cs
   Controllers/DeviceController.cs
   Routes/DeviceRoute.cs
+  GlobalExceptionHandler.cs           (shared — reuse, rarely edit)
   DependencyInjection.cs              (edit)
   Program.cs                          (edit: MapDeviceRoutes)
 ```
@@ -528,9 +624,10 @@ The JSON section name must match the string passed to `BindConfiguration`.
 4. Always register new services/controllers/repositories in DI
 5. Persist models by declaring them on `AppDbContext` in `Database.cs`
 6. Keep route names REST (resource nouns + HTTP verbs)
-7. Keep each file focused on its job
-8. Write code and comments in **English**
+7. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
+8. Throw `AppException` subtypes for expected errors (not bare `Exception`)
+9. Keep each file focused on its job
+10. Write code and comments in **English**; user-facing errors in **French**
 
-If you are stuck, open the matching `Example*` file for that layer and
-mirror it line by line with your feature name.
-)
+If you are stuck, open the matching `Example*` / `Auth*` file for that
+layer and mirror it line by line with your feature name.

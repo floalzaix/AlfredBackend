@@ -7,12 +7,15 @@
  * This way with the given token in the header of the requests
  * the user can access routes depending on his privileges.
  * 
- * The auth uses JWT bearer tokens with OAuth2.0 flow.
+ * The auth uses JWT Bearer tokens (local validation, no
+ * external auth server).
  */
 
 //
 //  Imports
 //
+
+using System.Security.Claims;
 
 using Backend.API.DTOs;
 using Backend.API.Controllers;
@@ -31,11 +34,46 @@ public static class AuthRoutes {
         //  Routes
         //
 
-        authRouter.MapPost("/register", (
+        authRouter.MapPost("/register", async(
             AuthController authController,
             RegisterRequestDTO registerRequestDTO
         ) => {
-            
-        });
+            return await authController.Register(registerRequestDTO);
+        })
+        .Produces(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
+        authRouter.MapPost("/login", async(
+            AuthController authController,
+            LoginRequestDTO loginRequestDTO
+        ) => {
+            return await authController.Login(loginRequestDTO);
+        })
+        .Produces(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .ProducesProblem(StatusCodes.Status401Unauthorized);
+
+        authRouter.MapPost("/logout", async(
+            AuthController authController,
+            ClaimsPrincipal claimsPrincipal
+        ) => {
+            return await authController.Logout(claimsPrincipal);
+        })
+        .RequireAuthorization("User")
+        .Produces(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        authRouter.MapGet("/me", async(
+            AuthController authController,
+            ClaimsPrincipal claimsPrincipal
+        ) => {
+            return await authController.Me(claimsPrincipal);
+        })
+        .RequireAuthorization("User")
+        .Produces(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden);
     }
 }

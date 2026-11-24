@@ -14,38 +14,38 @@ namespace Backend.API.DTOs;
  * Meant to validate the input or create a new user.
  */
 public class RegisterRequestDTO {
-    [Required(ErrorMessage = "The username is required !")]
-    [MinLength(3, ErrorMessage = "The username must be at least 3 characters long !")]
+    [Required(ErrorMessage = "Le nom d'utilisateur est requis !")]
+    [MinLength(3, ErrorMessage = "Le nom d'utilisateur doit contenir au moins 3 caractères !")]
     public string Username { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "The email is required !")]
-    [EmailAddress(ErrorMessage = "The email is not valid !")]
+    [Required(ErrorMessage = "L'email est requis !")]
+    [EmailAddress(ErrorMessage = "L'email n'est pas valide !")]
     public string Email { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "The password is required !")]
-    [MinLength(8, ErrorMessage = "The password must be at least 8 characters long !")]
+    [Required(ErrorMessage = "Le mot de passe est requis !")]
+    [MinLength(8, ErrorMessage = "Le mot de passe doit contenir au moins 8 caractères !")]
     [
         RegularExpression(
             @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$",
-            ErrorMessage = "The password must contain at least one uppercase letter, " +
-            "one lowercase letter, one number and one special character !"
+            ErrorMessage = "Le mot de passe doit contenir au moins une majuscule, " +
+            "une minuscule, un chiffre et un caractère spécial !"
         )
     ]
     public string Password { get; set; } = string.Empty;
 }
 
 public class LoginRequestDTO {
-    [Required(ErrorMessage = "The email is required !")]
-    [EmailAddress(ErrorMessage = "The email is not valid !")]
+    [Required(ErrorMessage = "L'email est requis !")]
+    [EmailAddress(ErrorMessage = "L'email n'est pas valide !")]
     public string Email { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "The password is required !")]
-    [MinLength(8, ErrorMessage = "The password must be at least 8 characters long !")]
+    [Required(ErrorMessage = "Le mot de passe est requis !")]
+    [MinLength(8, ErrorMessage = "Le mot de passe doit contenir au moins 8 caractères !")]
     [
         RegularExpression(
             @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$",
-            ErrorMessage = "The password must contain at least one uppercase letter, " +
-            "one lowercase letter, one number and one special character !"
+            ErrorMessage = "Le mot de passe doit contenir au moins une majuscule, " +
+            "une minuscule, un chiffre et un caractère spécial !"
         )
     ]
     public string Password { get; set; } = string.Empty;
