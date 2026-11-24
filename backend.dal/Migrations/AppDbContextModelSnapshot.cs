@@ -71,6 +71,28 @@ namespace backend.dal.Migrations
                     b.ToTable("HouseholdMembers");
                 });
 
+            modelBuilder.Entity("Backend.Models.Room", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HouseholdId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Rooms");
+                });
+
             modelBuilder.Entity("Backend.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -144,6 +166,15 @@ namespace backend.dal.Migrations
                     b.HasOne("Backend.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Backend.Models.Room", b =>
+                {
+                    b.HasOne("Backend.Models.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

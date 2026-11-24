@@ -44,6 +44,7 @@ public class AppDbContext(
     public DbSet<UserToken> UserTokens => Set<UserToken>();
     public DbSet<Household> Households => Set<Household>();
     public DbSet<HouseholdMember> HouseholdMembers => Set<HouseholdMember>();
+    public DbSet<Room> Rooms => Set<Room>();
 
     // YOURS
 
@@ -97,6 +98,16 @@ public class AppDbContext(
                 .WithMany()
                 .HasForeignKey(m => m.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Room>(room => {
+            room.Property(r => r.Name).HasMaxLength(100).IsRequired();
+            room.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(r => r.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // One room name per household.
+            room.HasIndex(r => new { r.HouseholdId, r.Name }).IsUnique();
         });
     }
 }
