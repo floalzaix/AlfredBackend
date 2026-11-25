@@ -42,6 +42,8 @@ public class AppDbContext(
     // public DbSet<MyExampleModel> MyExampleModels => Set<MyExampleModel>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
+    public DbSet<Home> Homes => Set<Home>();
+    public DbSet<HomeMembership> HomeMemberships => Set<HomeMembership>();
 
     // YOURS
 
@@ -74,6 +76,23 @@ public class AppDbContext(
                 .OnDelete(DeleteBehavior.Cascade);
             userToken.HasIndex(ut => ut.Jti).IsUnique();
             userToken.HasIndex(ut => ut.ExpiresAt);
+        });
+
+        modelBuilder.Entity<Home>(home => {
+            home.Property(h => h.Name).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<HomeMembership>(membership => {
+            membership.HasKey(m => new { m.HomeId, m.UserId });
+            membership.HasOne<Home>()
+                .WithMany()
+                .HasForeignKey(m => m.HomeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            membership.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            membership.Property(m => m.Role).HasConversion<string>().HasMaxLength(16);
         });
     }
 }
