@@ -121,15 +121,27 @@ Connection string: `backend.api/appsettings.Development.json` (`DALConfig`).
 Persisted entities today: `User`, `UserToken` (EF migrations in
 `backend.dal/Migrations`). More commands: `Documentation/commands.md`.
 
-### Run the API
+### Start the backend and frontend
 
-```bash
-dotnet restore
-dotnet build
-dotnet run --project backend.api
+Open two terminals in the parent `Infra` directory and keep them running. On first use, create the database container as described above, then configure the JWT signing key and apply the database migrations using [the development commands](Documentation/commands.md).
+
+**Terminal 1 — PostgreSQL and API**
+
+```powershell
+cd AlfredBackend
+docker start alfred-db
+dotnet run --project backend.api --launch-profile http
 ```
 
-Swagger (Development): open the app on port `5050` under `/api`.
+**Terminal 2 — Angular frontend**
+
+```powershell
+cd AlfredFrontend
+npm.cmd ci    # First run, or after package-lock.json changes
+npm.cmd start
+```
+
+Open [Alfred](http://localhost:8080/) or browse the [API in Swagger](http://localhost:5050/api/swagger/index.html).
 
 ---
 
@@ -138,7 +150,7 @@ Swagger (Development): open the app on port `5050` under `/api`.
 - .NET 10 or newer
 - C# 14 or newer
 - Docker (dev database)
-- For the SPA: Node.js / npm (see `frontend/README.md`)
+- For the SPA: Node.js / npm (see the [frontend README](../AlfredFrontend/README.md))
 
 ## Documentation
 
