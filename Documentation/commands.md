@@ -149,17 +149,52 @@ dotnet build
 Compile the solution to check for errors.
 
 ```
-dotnet run --project backend.api
+dotnet run --project Backend.API
 ```
 Run the API locally on `http://localhost:5050`
 (routes under `/api`, Swagger in Development).
 
 ```
-cd backend.api
+cd Backend.API
 dotnet watch
 ```
-Move into `backend.api` then run the app in hot reload mode
+Move into `Backend.API` then run the app in hot reload mode
 (reloads on every change without retyping a command).
+
+
+## TESTING
+
+Project: `Backend.Tests` (xUnit + Moq). Stop a running
+`dotnet run` of the API first if the build complains that DLLs
+are locked.
+
+```
+dotnet test
+```
+Restore/build as needed, then run **all** unit + integration tests.
+
+```
+dotnet test --filter "FullyQualifiedName~Unit"
+```
+Service unit tests only (fast; Moq, no HTTP host).
+
+```
+dotnet test --filter "FullyQualifiedName~Integration"
+```
+HTTP integration tests only (`WebApplicationFactory` + SQLite).
+
+```
+dotnet test --filter "FullyQualifiedName~AuthServiceTests"
+```
+Run one test class by name (change the filter as needed).
+
+```
+dotnet test --logger "console;verbosity=detailed"
+```
+More output when debugging a failure.
+
+Integration tests do **not** need Docker Postgres: the factory
+replaces EF with SQLite and injects a test JWT key.
 
 
 ## MIGRATIONS (Entity Framework)

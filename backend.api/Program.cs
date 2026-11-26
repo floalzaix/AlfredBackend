@@ -124,6 +124,9 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
+// Path base must be early so auth / routing see /api correctly.
+app.UsePathBase("/api");
+
 //
 //  CORS usage
 //
@@ -158,8 +161,6 @@ if (appConfig.UseHttpsRedirection)
 //
 //  Routes
 //
-
-app.UsePathBase("/api");
 
 app.MapExampleRoutes();
 app.MapAuthRoutes();

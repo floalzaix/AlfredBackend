@@ -65,6 +65,7 @@ Backend.Models  Domain models + Exceptions
 | Backend.BLL | Business logic | Interfaces, Services, BLL DI |
 | Backend.DAL | Persistence | Repositories, `AppDbContext`, migrations, `DALConfig`, DAL DI |
 | Backend.Models | Shared models | POCOs without logic, `Exceptions/` |
+| Backend.Tests | Automated tests | xUnit + Moq; unit (services) + integration (`WebApplicationFactory`) |
 
 **Dependency rules**
 
@@ -470,7 +471,8 @@ API/app containerization, CI/CD, and hosting strategy not defined yet.
 5. **Naming**: `ExempleUser` (typo) should align on `Example`.
 6. **Swagger and OpenAPI**: both `MapOpenApi()` and Swashbuckle are enabled;
    keep one if possible.
-7. **No automated tests** yet (backend or frontend).
+7. **Backend tests exist** (`Backend.Tests`); frontend automated
+   tests are still missing.
 8. **Frontend gaps**: no post-auth pages, logout UI, or `authGuard` on
    private routes yet.
 

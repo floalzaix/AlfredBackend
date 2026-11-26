@@ -111,6 +111,7 @@ Backend.Models     Shared domain models + Exceptions
 | `Backend.BLL` | Business logic | `Interfaces/`, `Services/`, BLL DI |
 | `Backend.DAL` | Persistence | `Interfaces/`, `Repositories/`, `AppDbContext`, DAL DI |
 | `Backend.Models` | Shared models | POCOs with properties only, `Exceptions/` |
+| `Backend.Tests` | Automated tests | xUnit + Moq unit tests (services) and integration tests (HTTP) |
 
 ### Dependency rules (do not break)
 
@@ -120,6 +121,7 @@ Allowed project references:
 - `BLL` → `DAL`, `Models`
 - `DAL` → `Models`
 - `Models` → nothing in this solution
+- `Tests` → `API`, `BLL`, `DAL`, `Models` (test project only)
 
 Forbidden:
 
@@ -129,6 +131,7 @@ Forbidden:
 - Putting business logic in Routes or DTOs
 - Accessing `AppDbContext` from API or Controllers (repositories only)
 - Skipping a layer (e.g. Controller calling a Repository directly)
+- Production code depending on `Backend.Tests`
 
 DI registration is **chained** so each layer pulls in the layer below it:
 
@@ -357,7 +360,11 @@ Feature: <Name>
 [ ] 14. RequireAuthorization on private routes (User / Admin)
 [ ] 15. Expected errors covered (AppException / existing subtypes)
        + documented on routes with .Produces / .ProducesProblem
-[ ] 16. Build and smoke-test happy path + error paths
+[ ] 16. Unit tests for the new/changed service(s) in Backend.Tests
+       (Moq repos; assert intended behavior, not only “no throw”)
+[ ] 17. Integration tests for the new/changed HTTP routes when useful
+       (WebApplicationFactory; happy path + expected errors)
+[ ] 18. Build, run tests, and smoke-test happy path + error paths
        (Bearer token in Swagger when protected; bad DTO → 400)
 ```
 
@@ -707,17 +714,60 @@ await db.HomeMemberships
 ---
 
 
+## Testing (`Backend.Tests`)
+
+Automated tests live in **`Backend.Tests`** (xUnit + Moq).
+
+| Kind | What | How |
+| --- | --- | --- |
+| **Unit** | BLL **services only** | New service + Moq for `I*Repository` / other deps; no real DB |
+| **Integration** | HTTP stack | `WebApplicationFactory` + SQLite stand-in; hit `/api/...` |
+
+### Rules
+
+- **Unit tests target services** (business rules). Do not unit-test
+  controllers/routes/repositories as the default — prefer service
+  unit tests + a few HTTP integration tests
+- Assert **what the code is supposed to do** (status, French
+  `AppException` message, JWT claims, side effects on mocks), not
+  only that a method returns without throwing
+- Match existing file style: English `/** … */` header, `// Imports`
+  / `// Class` / `// Methods` sections (see `AuthServiceTests`)
+- Integration host: `AlfredWebApplicationFactory` (JWT key via
+  `UseSetting`, EF provider swapped to SQLite). Keep integration
+  tests in the `"Integration"` collection (no parallel factories)
+- `Program.Partial.cs` exposes `Program` for `WebApplicationFactory`
+- After logout, a still-signed JWT is rejected by `ActiveJti` →
+  **403 Forbidden** (not 401). Assert that when testing revocation
+
+### Layout
+
+```
+Backend.Tests/
+  Unit/Services/          ← AuthServiceTests, ExampleServiceTests, …
+  Integration/            ← AlfredWebApplicationFactory, *IntegrationTests
+```
+
+When adding a feature: add service unit tests; add/adjust integration
+tests for the main happy path and expected HTTP errors when the
+feature exposes routes.
+
+Commands: see `commands.md` (Testing).
+
+---
+
 ## Commands
 
 See `commands.md` for Docker (dev DB), restore, build, run, watch,
-and EF migrations.
+EF migrations, and tests.
 
 Minimum verification after a feature:
 
 ```bash
 # start the dev database first (see commands.md)
 dotnet build
-dotnet run --project backend.api
+dotnet test
+dotnet run --project Backend.API
 ```
 
 ---
@@ -732,5 +782,7 @@ dotnet run --project backend.api
 5. Comment non-obvious features/methods (English, `Example*` style);
    use fluent EF queries in repositories
 6. Prefer extending a related existing feature over a new file tree
-7. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
+7. Add service unit tests (and integration tests for HTTP) in
+   `Backend.Tests` — assert intended behavior
+8. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
 

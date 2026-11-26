@@ -3,6 +3,8 @@
 - Structure and definition of a solution in C#
 - Structure and definition of a project in C#
 - Common commands and their use
+- Automated tests: xUnit (facts), Moq (mock repos), unit vs
+  integration; run with `dotnet test` (see `commands.md`)
 - C# specific keywords
 - Understand what "business logic" means in software development (domain/business logic)
 - Look at the code and use shift-click to explore what you don't understand

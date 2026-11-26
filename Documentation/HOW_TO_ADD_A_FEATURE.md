@@ -127,7 +127,11 @@ existing prefix owns that domain.
 [ ] Step 10 — Map the routes in Program.cs
 [ ] Step 11 — Review expected error paths + document them in Swagger
               (.Produces / .ProducesProblem on routes)
-[ ] Step 12 — Build and test happy path + error paths
+[ ] Step 12 — Unit tests for the service(s) in Backend.Tests
+              (xUnit + Moq; assert intended behavior)
+[ ] Step 13 — Integration tests for the HTTP routes when useful
+              (WebApplicationFactory; happy path + expected errors)
+[ ] Step 14 — Build, `dotnet test`, and smoke-test happy path + errors
               (Bearer JWT in Swagger if protected; bad DTO → 400)
 ```
 
@@ -632,11 +636,60 @@ subtypes fit.
 
 ---
 
-## Step 12 — Build and test
+## Step 12 — Unit tests for the service
+
+**Folder:** `Backend.Tests/Unit/Services/`
+
+**Role:** lock the **business rules** of your service without HTTP or
+PostgreSQL. Mock repository interfaces with **Moq**.
+
+Look at: `Backend.Tests/Unit/Services/AuthServiceTests.cs`
+
+What to assert (examples):
+
+- Happy path returns the expected data / calls the repo the right way
+- Missing resource → `NotFoundException` with the French message
+- Duplicate → `ConflictException`
+- Bad credentials → `UnauthorizedException` (same message whether
+  the email exists or not, for Auth)
+
+Do **not** only check that the method “does not throw”. Check the
+contract the frontend / other layers rely on.
+
+```bash
+dotnet test --filter "FullyQualifiedName~Unit"
+```
+
+---
+
+## Step 13 — Integration tests for the routes
+
+**Folder:** `Backend.Tests/Integration/`
+
+**Role:** call the real API in-process (`WebApplicationFactory`) with
+SQLite instead of Docker Postgres. Good for register/login flows,
+validation `400`, auth `401`/`403`, and ProblemDetails bodies.
+
+Look at: `AuthIntegrationTests.cs`, `ExampleIntegrationTests.cs`,
+`AlfredWebApplicationFactory.cs`.
+
+Keep new integration tests in the `"Integration"` collection
+(`[Collection("Integration")]`) so they share one host.
+
+```bash
+dotnet test --filter "FullyQualifiedName~Integration"
+```
+
+Note: after logout, a still-signed JWT fails `ActiveJti` → **403**.
+
+---
+
+## Step 14 — Build, automated tests, and smoke-test
 
 ```bash
 dotnet build
-dotnet run --project backend.api
+dotnet test
+dotnet run --project Backend.API
 ```
 
 API listens on `http://localhost:5050` with path base `/api`.
@@ -692,6 +745,10 @@ Backend.API/
   GlobalExceptionHandler.cs           (shared — reuse, rarely edit)
   DependencyInjection.cs              (edit)
   Program.cs                          (edit: MapDeviceRoutes)
+
+Backend.Tests/
+  Unit/Services/DeviceServiceTests.cs
+  Integration/DeviceIntegrationTests.cs   (when you expose HTTP)
 ```
 
 ---
@@ -764,8 +821,10 @@ More detail: `AGENTS.md` (Coding style → Comments).
     `To*Async`) — not raw SQL or LINQ query syntax
 14. Keep each file focused on its job
 15. Write code and comments in **English**; user-facing errors in **French**
+16. Add **service unit tests** (and useful HTTP integration tests) in
+    `Backend.Tests` — assert intended behavior, not only “no crash”
 
 If you are stuck, open the matching `Example*` / `Auth*` file for that
 layer and mirror it line by line with your feature name.
 More detail: `AGENTS.md` (feature ownership, CancellationToken, DTO
-validation, comments, repository queries).
+validation, comments, repository queries, testing).

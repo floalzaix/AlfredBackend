@@ -39,6 +39,11 @@ flowchart TB
         Exceptions["Exceptions<br/>AppException"]
     end
 
+    subgraph Tests["Backend.Tests"]
+        UnitTests["Unit/Services<br/>xUnit + Moq"]
+        IntegrationTests["Integration<br/>WebApplicationFactory"]
+    end
+
     Program["Program.cs<br/>PathBase /api + JWT + CORS"]
 
     Pages --> Features
@@ -72,4 +77,11 @@ flowchart TB
     BLL -->|"project ref"| DAL
     BLL -->|"project ref"| Models
     DAL -->|"project ref"| Models
+
+    UnitTests -->|"mocks + services"| BLL
+    IntegrationTests -->|"hosts in-process"| API
+    Tests -->|"project ref"| API
+    Tests -->|"project ref"| BLL
+    Tests -->|"project ref"| DAL
+    Tests -->|"project ref"| Models
 ```
