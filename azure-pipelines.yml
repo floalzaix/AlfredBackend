@@ -1,5 +1,5 @@
 # CI pipeline for Alfred backend (.NET 10).
-# - Trigger: pushes to main only (PR validation via Azure Repos branch policies).
+# - Trigger: pushes to prod only (PR validation via Azure Repos branch policies).
 # - No secrets / tokens in this file.
 # - Does not provision the database or App Service.
 # - deploy=false by default; a PR must never deploy.
@@ -13,7 +13,7 @@ parameters:
 trigger:
   branches:
     include:
-      - main
+      - prod
 
 # Do not use pr: here. Wire PR builds with Branch policies > Build validation.
 
@@ -107,7 +107,7 @@ stages:
         succeeded(),
         eq(${{ parameters.deploy }}, true),
         ne(variables['Build.Reason'], 'PullRequest'),
-        eq(variables['Build.SourceBranch'], 'refs/heads/main')
+        eq(variables['Build.SourceBranch'], 'refs/heads/prod')
       )
     jobs:
       - job: DeployApi
