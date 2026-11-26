@@ -187,12 +187,12 @@ public DbSet<Device> Devices => Set<Device>();
 Add relationships in `OnModelCreating` only when you need them
 (see the commented example already in that file).
 
-Connection strings live under `DALConfig`:
-`ConnectionString` with `Password={PASSWORD_PLACEHOLDER}`, plus
-`DBPassword` (dev: `appsettings.Development.json`; prod: env
-`DALConfig__DBPassword`). Do not commit production passwords.
-Start the DB with `Backend.DAL/Dockerfile` before running migrations
-(see `commands.md`).
+Connection string lives under `DALConfig:ConnectionString` as the
+**full** Npgsql string (password included). Dev:
+`appsettings.Development.json`. Prod: secret
+`DALConfig__ConnectionString` (TLS, dedicated user). Do not commit
+production secrets. Cloud checklist: `commands.md`. Start the DB with
+`Backend.DAL/Dockerfile` before running migrations.
 
 ### 2.2 Repository interface
 

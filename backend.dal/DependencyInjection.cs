@@ -50,7 +50,7 @@ public static class DependencyInjection {
         // Register AppDbContext with the connection string from DALConfig
         services.AddDbContext<AppDbContext>((sp, options) => {
             var dalConfig = sp.GetRequiredService<IOptions<DALConfig>>().Value;
-            options.UseNpgsql(dalConfig.GetFullConnectionString());
+            options.UseNpgsql(dalConfig.ConnectionString);
         });
 
         // services.AddScoped<Interface, Class(implementating the interface)>();

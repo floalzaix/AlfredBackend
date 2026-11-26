@@ -19,23 +19,8 @@ using System.ComponentModel.DataAnnotations;
 //
 
 public class DALConfig {
-    [Required(ErrorMessage = "ConnectionString is required in appsettings.json")]
+    // Full Npgsql string including password.
+    // Dev: appsettings.Development.json. Prod: secret / env only.
+    [Required(ErrorMessage = "ConnectionString is required in DALConfig")]
     public string ConnectionString { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "DB Password required in env !")]
-    public string DBPassword { get; set; } = string.Empty;
-
-    //
-    //  Methods
-    //
-    
-    /**
-     * Get the full connection string with the db password in the
-     * string by replacing the place holder.
-     * 
-     * @return The connection string to the db ready to be used.
-     */
-    public string GetFullConnectionString() {
-        return this.ConnectionString.Replace("{PASSWORD_PLACEHOLDER}", this.DBPassword);
-    }
 }

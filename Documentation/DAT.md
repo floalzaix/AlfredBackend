@@ -137,7 +137,7 @@ and free of internal/debug information.
 | --- | --- |
 | `Backend.DAL/DependencyInjection.cs` | `DALConfig`, `AppDbContext`, repositories |
 | `Backend.BLL/DependencyInjection.cs` | Services (`I*Service` → `*Service`) |
-| `Backend.API/DependencyInjection.cs` | Controllers, exception handler, `TokenCleanupBackgroundService` |
+| `Backend.API/DependencyInjection.cs` | `AppConfig`, controllers, exception handler, `TokenCleanupBackgroundService` |
 
 ### Adding configuration for a project
 
@@ -164,13 +164,14 @@ Reference: `Backend.DAL/DALConfig.cs`.
 - Without that registration, EF will not create/update a table for the model
 - EF Core migrations live in `Backend.DAL/Migrations` and are applied from
   `Backend.API` as startup project
-- Connection strings live under `DALConfig`. The connection string uses
-  `Password={PASSWORD_PLACEHOLDER}`; `DBPassword` is substituted at
-  runtime via `GetFullConnectionString()`
-- **Dev**: `DBPassword` may live in `appsettings.Development.json`
-  (Docker password is tracked on purpose)
-- **Prod**: set env `DALConfig__DBPassword` — never commit the real
-  Azure password. See `commands.md`
+- Connection string lives under `DALConfig:ConnectionString` as the
+  **full** Npgsql string (password included). Cloud: dedicated DB user,
+  `Ssl Mode=Require`, `Trust Server Certificate=false`
+- **Dev**: full string in `appsettings.Development.json` (Docker
+  password tracked on purpose)
+- **Prod secrets**: `DALConfig__ConnectionString` + `JwtConfig__Key`
+  (never commit). Plain config: environment, HTTPS redirect, CORS —
+  see `commands.md`. `ASPNETCORE_ENVIRONMENT` must be `Production`
 - **Dev database**: `Backend.DAL/Dockerfile` (PostgreSQL, port `4040`,
   database `alfred_db`). Commands in `commands.md` / `README.md`.
   Dev-only credentials; do not use that image in production.
@@ -187,14 +188,13 @@ create/delete/check tokens, cleanup expired tokens).
 
 | File | Connection string purpose |
 | --- | --- |
-| `appsettings.json` | Azure / default host + `{PASSWORD_PLACEHOLDER}` |
-| `appsettings.Development.json` | Local Docker DB + `DBPassword` |
-| `appsettings.Production.json` | Fake production example |
+| `appsettings.json` | No prod connection string (secret only) |
+| `appsettings.Development.json` | Full local Docker string (incl. password) |
+| `appsettings.Production.json` | Cloud host defaults (HTTPS redirect off, empty CORS) |
 
 ```json
 "DALConfig": {
-  "ConnectionString": "…;Password={PASSWORD_PLACEHOLDER};…",
-  "DBPassword": "…"
+  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…;Ssl Mode=Require;Trust Server Certificate=false"
 }
 ```
 
@@ -287,7 +287,7 @@ env for `Key`):
 | --- | --- |
 | `Issuer` | Token issuer (`alfred_backend`) |
 | `Audience` | Token audience (`alfred_backend`) |
-| `Key` | Base64 signing key (secrets / env — not in repo) |
+| `Key` | Base64 signing key ≥ 32 bytes (secrets / `JwtConfig__Key`; prod ≠ local) |
 | `ExpirationTime` | Validity in minutes |
 
 Swagger (dev): use the `bearer` security scheme and paste the JWT
@@ -305,11 +305,20 @@ Policy name: **`Frontend`**. Origins come from configuration:
 }
 ```
 
-- Development: `http://localhost:8080` (Angular `ng serve` port)
-- Production placeholder may include `https://<nom hote>`
+- Development: `http://localhost:8080` (Angular `ng serve` port;
+  change if the SPA uses another port, e.g. Vite `5173`)
+- Production: exact origins via `Cors__AllowedOrigins__0` (no wildcards)
 - Pipeline: `UseCors("Frontend")` before auth middleware
 - Allows any header and any method for listed origins
 - The SPA calls the API **cross-origin** (no frontend proxy)
+
+### App host (`AppConfig`)
+
+| Setting | Purpose |
+| --- | --- |
+| `UseHttpsRedirection` | When `true`, calls `UseHttpsRedirection()`. `false` on App Service (HTTPS Only / TLS at proxy) |
+
+Cloud env checklist (DB, JWT, CORS, environment): see `commands.md`.
 
 | Topic | State |
 | --- | --- |
@@ -318,9 +327,9 @@ Policy name: **`Frontend`**. Origins come from configuration:
 | Current user (`GET /auth/me`) | Implemented |
 | Logout / JWT revocation (`jti` + `UserToken`) | Implemented |
 | Expired-token cleanup daemon | Implemented (`TokenCleanupBackgroundService`) |
-| CORS for frontend | Implemented (`Cors:AllowedOrigins`) |
+| CORS for frontend | Implemented (`Cors:AllowedOrigins` / env `__0`) |
 | Global error handling | Implemented (`AppException` + `GlobalExceptionHandler` + ProblemDetails) |
-| HTTPS | Redirection enabled |
+| HTTPS | Configurable via `AppConfig:UseHttpsRedirection` |
 | Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |
 | Input validation | DataAnnotations on DTOs (French `ErrorMessage`); `AddValidation()` in `Program.cs` |

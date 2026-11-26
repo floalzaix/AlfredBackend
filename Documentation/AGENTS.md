@@ -73,11 +73,17 @@ protected (`User`). JWT middleware is already wired in `Program.cs`
 token parsing in controllers or services.
 
 **Config** — `JwtConfig` in `appsettings*.json`; signing `Key` from
-user-secrets / env (never commit it). Details: `DAT.md` §9.
+user-secrets / env (never commit it; ≥ 32 random bytes Base64;
+prod key ≠ local). Cloud env checklist: `commands.md`
+(Cloud / production configuration).
 
 **CORS** — policy `Frontend` from `Cors:AllowedOrigins` (dev:
-`http://localhost:8080`). Wired with `AddCors` / `UseCors` in
-`Program.cs`. Keep origins aligned with the Angular serve port.
+`http://localhost:8080`). Prod: exact origins via
+`Cors__AllowedOrigins__0` (no wildcards). Wired with `AddCors` /
+`UseCors` in `Program.cs`.
+
+**HTTPS** — `AppConfig:UseHttpsRedirection` (false on App Service
+behind HTTPS Only; do not disable App Service HTTPS Only).
 
 ---
 
@@ -384,9 +390,9 @@ Feature: <Name>
   - Without this step the model exists in code but is **not** persisted
 - Register: `services.AddScoped<I<Feature>Repository, <Feature>Repository>();`
 - Migration commands: see `commands.md`
-- Connection string comes from `DALConfig` (`ConnectionString` +
-  `DBPassword` / `{PASSWORD_PLACEHOLDER}`). Prod password via env
-  `DALConfig__DBPassword` — see `commands.md`
+- Connection string comes from `DALConfig:ConnectionString` (full
+  string including password). Dev: `appsettings.Development.json`.
+  Prod: secret `DALConfig__ConnectionString` — see `commands.md`
 
 #### 7–9. Business logic — `Backend.BLL`
 
@@ -533,30 +539,28 @@ The section name in JSON must match `BindConfiguration("…")`
 
 | File | Purpose |
 | --- | --- |
-| `appsettings.json` | Default / Azure host string with `{PASSWORD_PLACEHOLDER}` |
-| `appsettings.Development.json` | Local PostgreSQL (dev Docker DB) + `DBPassword` |
-| `appsettings.Production.json` | Fake production example |
+| `appsettings.json` | No production connection string (secrets only) |
+| `appsettings.Development.json` | Full local Docker Postgres string (incl. password) |
+| `appsettings.Production.json` | Cloud defaults (`UseHttpsRedirection: false`, empty CORS) |
 
 Section shape:
 
 ```json
 "DALConfig": {
-  "ConnectionString": "…;Password={PASSWORD_PLACEHOLDER};…",
-  "DBPassword": "…"
+  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…;Ssl Mode=Require;Trust Server Certificate=false"
 }
 ```
 
-`DALConfig.GetFullConnectionString()` replaces `{PASSWORD_PLACEHOLDER}`
-with `DBPassword` before Npgsql connects.
+Prefer a **dedicated** DB user in cloud. The value is the **full**
+Npgsql string (password included) — no placeholder.
 
-| Environment | Where `DBPassword` comes from |
+| Environment | Where values come from |
 | --- | --- |
-| Development | `appsettings.Development.json` (local Docker password) |
-| Production | env var `DALConfig__DBPassword` (never commit the real value) |
+| Development | `appsettings.Development.json` (+ JWT via user-secrets) |
+| Production **secrets** | `DALConfig__ConnectionString`, `JwtConfig__Key` |
+| Production **plain config** | `ASPNETCORE_ENVIRONMENT=Production`, `AppConfig__UseHttpsRedirection`, `Cors__AllowedOrigins__0` |
 
-Optional local override: user-secrets
-`dotnet user-secrets set "DALConfig:DBPassword" "…"`. Details:
-`commands.md`.
+Details: `commands.md` (Cloud / production configuration).
 
 ### JWT settings (`JwtConfig`)
 
@@ -568,8 +572,23 @@ Optional local override: user-secrets
 }
 ```
 
-`Key` (Base64 signing key) must come from user-secrets or environment
-variables — not from tracked appsettings. See `commands.md`.
+`Key` (Base64, ≥ 32 random bytes) must come from user-secrets or
+cloud secret `JwtConfig__Key` — not from tracked appsettings.
+Production key must be distinct from local. See `commands.md` /
+`genkey.ps1`.
+
+### App host settings (`AppConfig`)
+
+```json
+"AppConfig": {
+  "UseHttpsRedirection": false
+}
+```
+
+- Development / local `http` profile: `false` (see
+  `appsettings.Development.json`)
+- Production / App Service: `false` — keep **HTTPS Only** enabled on
+  the platform; TLS ends at the proxy
 
 ### Dev database (Docker)
 
@@ -579,7 +598,7 @@ password is tracked in git). Build/run commands: see `commands.md`.
 Default settings: host `localhost`, port `4040`, database `alfred_db`
 (user/password in the Dockerfile). Keep
 `appsettings.Development.json` aligned with those values
-(`ConnectionString` placeholder + `DBPassword`).
+(full `ConnectionString`).
 
 ---
 
@@ -589,7 +608,7 @@ Each layer owns its registrations and chains the layer below:
 
 | File | Calls next | Registers |
 | --- | --- | --- |
-| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers, exception handler, `TokenCleanupBackgroundService` |
+| `Backend.API/DependencyInjection.cs` | `AddBLL()` | `AppConfig`, controllers, exception handler, `TokenCleanupBackgroundService` |
 | `Backend.BLL/DependencyInjection.cs` | `AddDAL()` | services (`I*Service` → `*Service`) |
 | `Backend.DAL/DependencyInjection.cs` | — | `AppDbContext`, repositories |
 
@@ -606,6 +625,10 @@ Inside the layers:
 ```csharp
 // AddAPI
 services.AddBLL();
+services.AddOptions<AppConfig>()
+    .BindConfiguration("AppConfig")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 services.AddScoped<ExampleController>();
 
 // AddBLL

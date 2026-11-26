@@ -64,13 +64,20 @@ API and periodically deletes expired `UserToken` rows (every 5 minutes).
 Protect a route with `.RequireAuthorization("User")` or
 `.RequireAuthorization("Admin")`. JWT settings live under `JwtConfig`
 in `appsettings*.json`; the signing `Key` comes from user-secrets /
-environment variables. More detail: `Documentation/DAT.md` §9.
+`JwtConfig__Key` (≥ 32 bytes Base64; prod key ≠ local). Cloud env
+checklist: `Documentation/commands.md`.
 
 ### CORS
 
 Policy `Frontend` reads `Cors:AllowedOrigins`. Development allows
 `http://localhost:8080` so the Angular app can call the API
-cross-origin. Keep that list in sync with the SPA port.
+cross-origin. Production: set exact origins with
+`Cors__AllowedOrigins__0` (no wildcards).
+
+### HTTPS
+
+`AppConfig:UseHttpsRedirection` — `false` on Azure App Service when
+HTTPS Only terminates TLS at the proxy (do not disable HTTPS Only).
 
 ### Errors
 

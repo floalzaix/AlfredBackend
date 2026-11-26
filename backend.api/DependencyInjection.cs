@@ -40,6 +40,12 @@ namespace Backend.API;
 public static class DependencyInjection {
     public static IServiceCollection AddAPI(this IServiceCollection services) {
         services.AddBLL();
+
+        // Adding the API host configuration (HTTPS redirection, …)
+        services.AddOptions<AppConfig>()
+            .BindConfiguration("AppConfig")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
         
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // or
