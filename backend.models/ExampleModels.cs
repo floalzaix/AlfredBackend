@@ -21,7 +21,8 @@ namespace Backend.Models;
 //  Class
 //
 
-public class ExempleUser {
+public class ExempleUser
+{
     public Guid Id { get; set; } // If you dont know what Guid check online
     public required string Name { get; set; }
 }

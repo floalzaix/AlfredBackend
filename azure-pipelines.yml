@@ -1,19 +1,142 @@
-# ASP.NET Core
-# Build and test ASP.NET Core projects targeting .NET Core.
-# Add steps that run tests, create a NuGet package, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+# CI pipeline for Alfred backend (.NET 10).
+# - Trigger: pushes to prod only (PR validation via Azure Repos branch policies).
+# - No secrets / tokens in this file.
+# - Does not provision the database or App Service.
+# - deploy=false by default; a PR must never deploy.
+
+parameters:
+  - name: deploy
+    displayName: Deploy the published API zip to an existing App Service
+    type: boolean
+    default: false
 
 trigger:
-- main
+  branches:
+    include:
+      - prod
+
+# Do not use pr: here. Wire PR builds with Branch policies > Build validation.
 
 pool:
   vmImage: ubuntu-latest
 
 variables:
-  buildConfiguration: 'Release'
+  buildConfiguration: Release
+  dotnetSdkVersion: "10.0.x"
+  solution: backend.sln
+  apiProject: backend.api/backend.api.csproj
+  # Optional CD (only when parameters.deploy is true). Set in the
+  # pipeline UI / variable group — never commit secrets.
+  azureServiceConnection: ""
+  azureWebAppName: ""
 
-steps:
-- script: cd backend.api && dotnet user-secrets set "DALConfig:DBPassword" "$(DB_PASSWORD)" && dotnet user-secrets set "JwtConfig:Key" "$(JWT_KEY)"
-  displayName: "Creating secrets."
-- script: dotnet build "backend.slnx" --configuration $(buildConfiguration)
-  displayName: 'dotnet build $(buildConfiguration)'
+stages:
+  - stage: CI
+    displayName: Restore, format, build, test, publish
+    jobs:
+      - job: BuildTestPublish
+        displayName: Build, test and publish
+        steps:
+          - checkout: self
+            displayName: Checkout sources
+
+          - task: UseDotNet@2
+            displayName: Install .NET SDK
+            inputs:
+              packageType: sdk
+              version: $(dotnetSdkVersion)
+
+          - task: DotNetCoreCLI@2
+            displayName: Restore
+            inputs:
+              command: restore
+              projects: $(solution)
+
+          # Local fix if this fails: dotnet format $(solution)  (J1)
+          - script: dotnet format "$(solution)" --verify-no-changes --no-restore
+            displayName: Format check
+
+          - task: DotNetCoreCLI@2
+            displayName: Build
+            inputs:
+              command: build
+              projects: $(solution)
+              arguments: --configuration $(buildConfiguration) --no-restore
+
+          - task: DotNetCoreCLI@2
+            displayName: Tests and coverage
+            inputs:
+              command: test
+              projects: $(solution)
+              arguments: >-
+                --configuration $(buildConfiguration)
+                --no-build
+                --collect:"XPlat Code Coverage"
+                --results-directory $(Agent.TempDirectory)/testresults
+              publishTestResults: true
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish coverage
+            inputs:
+              summaryFileLocation: $(Agent.TempDirectory)/testresults/**/coverage.cobertura.xml
+              failIfCoverageEmpty: false
+
+          - task: DotNetCoreCLI@2
+            displayName: Publish API
+            inputs:
+              command: publish
+              publishWebProjects: false
+              projects: $(apiProject)
+              arguments: >-
+                --configuration $(buildConfiguration)
+                --output $(Build.ArtifactStagingDirectory)/api
+              zipAfterPublish: true
+              modifyOutputPath: false
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish artifact api
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)
+              artifact: api
+
+  - stage: Deploy
+    displayName: Deploy (optional)
+    dependsOn: CI
+    condition: >-
+      and(
+        succeeded(),
+        eq(${{ parameters.deploy }}, true),
+        ne(variables['Build.Reason'], 'PullRequest'),
+        eq(variables['Build.SourceBranch'], 'refs/heads/prod')
+      )
+    jobs:
+      - job: DeployApi
+        displayName: Deploy api.zip to existing App Service
+        steps:
+          - checkout: none
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download artifact api
+            inputs:
+              buildType: current
+              artifactName: api
+              targetPath: $(Pipeline.Workspace)/api
+
+          - script: |
+              set -e
+              if [ -z "$(azureServiceConnection)" ] || [ -z "$(azureWebAppName)" ]; then
+                echo "Deploy requested but azureServiceConnection / azureWebAppName are not set."
+                echo "Configure them in the pipeline variables (existing App Service only)."
+                exit 1
+              fi
+              echo "Deploy target App Service: $(azureWebAppName)"
+            displayName: Check deploy variables
+
+          - task: AzureWebApp@1
+            displayName: Deploy to App Service
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              appType: webAppLinux
+              appName: $(azureWebAppName)
+              package: $(Pipeline.Workspace)/api/api.zip
+              deploymentMethod: auto

@@ -9,10 +9,11 @@
 //  Imports
 //
 
+using Backend.BLL.Interfaces;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Backend.BLL.Interfaces;
 
 namespace Backend.API;
 
@@ -23,7 +24,8 @@ namespace Backend.API;
 public class TokenCleanupBackgroundService(
     IServiceScopeFactory scopeFactory,
     ILogger<TokenCleanupBackgroundService> logger
-) : BackgroundService {
+) : BackgroundService
+{
     //
     //  Properties
     //
@@ -39,9 +41,12 @@ public class TokenCleanupBackgroundService(
 
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken
-    ) {
-        while (!stoppingToken.IsCancellationRequested) {
-            try {
+    )
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
                 using var scope = this.scopeFactory.CreateScope();
                 var authService = scope.ServiceProvider
                     .GetRequiredService<IAuthService>();
@@ -49,7 +54,8 @@ public class TokenCleanupBackgroundService(
                 int removed = await authService
                     .CleanupExpiredTokensAsync();
 
-                if (removed > 0) {
+                if (removed > 0)
+                {
                     this.logger.LogInformation(
                         "Removed {Count} expired user token(s).",
                         removed
@@ -57,21 +63,25 @@ public class TokenCleanupBackgroundService(
                 }
             }
             catch (OperationCanceledException)
-                when (stoppingToken.IsCancellationRequested) {
+                when (stoppingToken.IsCancellationRequested)
+            {
                 break;
             }
-            catch (Exception ex) {
+            catch (Exception ex)
+            {
                 this.logger.LogError(
                     ex,
                     "Failed to clean up expired user tokens."
                 );
             }
 
-            try {
+            try
+            {
                 await Task.Delay(Interval, stoppingToken);
             }
             catch (OperationCanceledException)
-                when (stoppingToken.IsCancellationRequested) {
+                when (stoppingToken.IsCancellationRequested)
+            {
                 break;
             }
         }

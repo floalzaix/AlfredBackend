@@ -38,7 +38,8 @@ namespace Backend.API.Routes;
 //  Class
 //
 
-public static class ExampleRoutes {
+public static class ExampleRoutes
+{
 
     /**
      * Gives the definitions of the routes to the class which
@@ -52,13 +53,14 @@ public static class ExampleRoutes {
      * @param None thanks to 'this' -> Check what it is
      * @return Nothing
      */
-    public static void MapExampleRoutes(this IEndpointRouteBuilder mainRouter) {
+    public static void MapExampleRoutes(this IEndpointRouteBuilder mainRouter)
+    {
         var exampleRouter = mainRouter.MapGroup("/example");
 
         //
         //  Routes
         //
-        
+
         /**
          * Demo route (not a REST resource name).
          * Real features should use REST resource paths instead.
@@ -66,7 +68,8 @@ public static class ExampleRoutes {
         exampleRouter.MapGet("/hello_world", (
             ExampleController controller,
             [AsParameters] GetHelloWorldDTO hw
-        ) => {
+        ) =>
+        {
             return controller.GetHelloWorld(hw);
         })
         .RequireAuthorization("User")

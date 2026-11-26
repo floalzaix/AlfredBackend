@@ -26,7 +26,8 @@ namespace Backend.BLL.Interfaces;
 //  Interface
 //
 
-public interface IExampleService {
+public interface IExampleService
+{
     /**
      * Just a function to illustrate that the controller
      * gives a simple string and the service returns the

@@ -13,7 +13,8 @@ namespace Backend.API.DTOs;
 /**
  * Meant to validate the input or create a new user.
  */
-public class RegisterRequestDTO {
+public class RegisterRequestDTO
+{
     [Required(ErrorMessage = "Le nom d'utilisateur est requis !")]
     [MinLength(3, ErrorMessage = "Le nom d'utilisateur doit contenir au moins 3 caractères !")]
     public string Username { get; set; } = string.Empty;
@@ -34,7 +35,8 @@ public class RegisterRequestDTO {
     public string Password { get; set; } = string.Empty;
 }
 
-public class LoginRequestDTO {
+public class LoginRequestDTO
+{
     [Required(ErrorMessage = "L'email est requis !")]
     [EmailAddress(ErrorMessage = "L'email n'est pas valide !")]
     public string Email { get; set; } = string.Empty;

@@ -17,7 +17,8 @@ using System.ComponentModel.DataAnnotations;
 //  Config
 //
 
-public class JwtConfig {
+public class JwtConfig
+{
     [Required(ErrorMessage = "Issuer is required in JwtConfig")]
     public string? Issuer { get; set; }
 

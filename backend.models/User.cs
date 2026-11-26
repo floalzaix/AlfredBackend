@@ -17,7 +17,8 @@ namespace Backend.Models;
 //  Class
 //
 
-public class User {
+public class User
+{
     [Key]
     public Guid Id { get; set; }
 
@@ -37,7 +38,8 @@ public class User {
 /**
  * Stores the user tokens' id to handle the logout process.
  */
-public class UserToken {
+public class UserToken
+{
     [Key]
     public Guid Id { get; set; }
 

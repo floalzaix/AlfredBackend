@@ -14,7 +14,8 @@ using Backend.Models;
 //  Interface
 //
 
-public interface IAuthService {
+public interface IAuthService
+{
     Task<string> Register(string username, string email, string password);
     Task<(Guid, string)> Login(string email, string password);
     Task<bool> IsTokenActiveAsync(string jti);

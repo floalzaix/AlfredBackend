@@ -23,14 +23,16 @@ using System.Text.Json.Serialization;
 //
 
 [Collection("Integration")]
-public class AuthIntegrationTests {
+public class AuthIntegrationTests
+{
     //
     //  Properties
     //
 
     private readonly HttpClient client;
 
-    private static readonly JsonSerializerOptions JsonOptions = new() {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
         PropertyNameCaseInsensitive = true
     };
 
@@ -38,7 +40,8 @@ public class AuthIntegrationTests {
     //  Constructor
     //
 
-    public AuthIntegrationTests(AlfredWebApplicationFactory factory) {
+    public AuthIntegrationTests(AlfredWebApplicationFactory factory)
+    {
         this.client = factory.CreateClient();
     }
 
@@ -47,12 +50,14 @@ public class AuthIntegrationTests {
     //
 
     [Fact]
-    public async Task Register_ShouldReturnBearerToken() {
+    public async Task Register_ShouldReturnBearerToken()
+    {
         string email = this.UniqueEmail();
 
         HttpResponseMessage response = await this.client.PostAsJsonAsync(
             "/api/auth/register",
-            new {
+            new
+            {
                 username = "alice",
                 email,
                 password = "Password1!"
@@ -70,13 +75,15 @@ public class AuthIntegrationTests {
     }
 
     [Fact]
-    public async Task Register_WhenEmailAlreadyUsed_ShouldReturn409() {
+    public async Task Register_WhenEmailAlreadyUsed_ShouldReturn409()
+    {
         string email = this.UniqueEmail();
         await this.RegisterAsync(email, "Password1!");
 
         HttpResponseMessage response = await this.client.PostAsJsonAsync(
             "/api/auth/register",
-            new {
+            new
+            {
                 username = "other",
                 email,
                 password = "Password1!"
@@ -95,10 +102,12 @@ public class AuthIntegrationTests {
     }
 
     [Fact]
-    public async Task Register_WithInvalidPayload_ShouldReturn400() {
+    public async Task Register_WithInvalidPayload_ShouldReturn400()
+    {
         HttpResponseMessage response = await this.client.PostAsJsonAsync(
             "/api/auth/register",
-            new {
+            new
+            {
                 username = "ab",
                 email = "not-an-email",
                 password = "short"
@@ -109,13 +118,15 @@ public class AuthIntegrationTests {
     }
 
     [Fact]
-    public async Task Login_WithValidCredentials_ShouldReturnBearerToken() {
+    public async Task Login_WithValidCredentials_ShouldReturnBearerToken()
+    {
         string email = this.UniqueEmail();
         await this.RegisterAsync(email, "Password1!");
 
         HttpResponseMessage response = await this.client.PostAsJsonAsync(
             "/api/auth/login",
-            new {
+            new
+            {
                 email,
                 password = "Password1!"
             }
@@ -132,13 +143,15 @@ public class AuthIntegrationTests {
     }
 
     [Fact]
-    public async Task Login_WithWrongPassword_ShouldReturn401() {
+    public async Task Login_WithWrongPassword_ShouldReturn401()
+    {
         string email = this.UniqueEmail();
         await this.RegisterAsync(email, "Password1!");
 
         HttpResponseMessage response = await this.client.PostAsJsonAsync(
             "/api/auth/login",
-            new {
+            new
+            {
                 email,
                 password = "WrongPass1!"
             }
@@ -156,7 +169,8 @@ public class AuthIntegrationTests {
     }
 
     [Fact]
-    public async Task Me_WithValidToken_ShouldReturnCurrentUser() {
+    public async Task Me_WithValidToken_ShouldReturnCurrentUser()
+    {
         string email = this.UniqueEmail();
         string token = await this.RegisterAsync(email, "Password1!");
 
@@ -189,7 +203,8 @@ public class AuthIntegrationTests {
     }
 
     [Fact]
-    public async Task Me_WithoutToken_ShouldReturn401() {
+    public async Task Me_WithoutToken_ShouldReturn401()
+    {
         HttpResponseMessage response = await this.client.GetAsync(
             "/api/auth/me"
         );
@@ -198,7 +213,8 @@ public class AuthIntegrationTests {
     }
 
     [Fact]
-    public async Task Logout_ShouldRevokeTokenForProtectedRoutes() {
+    public async Task Logout_ShouldRevokeTokenForProtectedRoutes()
+    {
         string email = this.UniqueEmail();
         string token = await this.RegisterAsync(email, "Password1!");
 
@@ -231,10 +247,12 @@ public class AuthIntegrationTests {
     private async Task<string> RegisterAsync(
         string email,
         string password
-    ) {
+    )
+    {
         HttpResponseMessage response = await this.client.PostAsJsonAsync(
             "/api/auth/register",
-            new {
+            new
+            {
                 username = "alice",
                 email,
                 password
@@ -250,7 +268,8 @@ public class AuthIntegrationTests {
         return body!.AccessToken;
     }
 
-    private string UniqueEmail() {
+    private string UniqueEmail()
+    {
         return $"user-{Guid.NewGuid():N}@example.com";
     }
 
@@ -258,7 +277,8 @@ public class AuthIntegrationTests {
     //  Nested types
     //
 
-    private sealed class TokenResponse {
+    private sealed class TokenResponse
+    {
         [JsonPropertyName("access_token")]
         public string AccessToken { get; set; } = string.Empty;
 

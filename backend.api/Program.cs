@@ -12,16 +12,16 @@
 //  Imports
 //
 
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
-
 // Perso
 
 using Backend.API;
 using Backend.API.Routes;
 using Backend.BLL;
+
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 //
 //  Builder 

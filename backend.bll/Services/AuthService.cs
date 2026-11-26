@@ -17,15 +17,17 @@
 
 namespace Backend.BLL.Services;
 
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using Backend.BLL.Interfaces;
+using Backend.DAL.Interfaces;
+using Backend.Models;
+using Backend.Models.Exceptions;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Backend.Models;
-using Backend.Models.Exceptions;
-using Backend.BLL.Interfaces;
-using Backend.DAL.Interfaces;
+
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 //
 //  Class
@@ -36,11 +38,12 @@ public class AuthService(
     IPasswordHasher<User> passwordHasher,
     IAuthRepo userRepository,
     IOptions<JwtConfig> jwtConfig
-) : IAuthService {
+) : IAuthService
+{
     //
     //  Properties
     //
-    
+
     private readonly IPasswordHasher<User> passwordHasher = passwordHasher;
     private readonly IAuthRepo userRepository = userRepository;
     private readonly JwtConfig jwtConfig = jwtConfig.Value;
@@ -53,16 +56,19 @@ public class AuthService(
         string username,
         string email,
         string password
-    ) {
+    )
+    {
         User? existingUser = await this.userRepository.GetUserByEmail(
             email
         );
 
-        if (existingUser is not null) {
+        if (existingUser is not null)
+        {
             throw new ConflictException("Email déjà utilisé.");
         }
 
-        var user = new User {
+        var user = new User
+        {
             Username = username,
             Email = email,
             PasswordHash = string.Empty,
@@ -76,7 +82,8 @@ public class AuthService(
         return await this.generateToken(user);
     }
 
-    public async Task<(Guid, string)> Login(string email, string password) {
+    public async Task<(Guid, string)> Login(string email, string password)
+    {
         User? user = await this.userRepository.GetUserByEmail(email);
 
         bool isPasswordValid = user is not null
@@ -86,14 +93,16 @@ public class AuthService(
                 password
             ) == PasswordVerificationResult.Success;
 
-        if (!isPasswordValid) {
+        if (!isPasswordValid)
+        {
             throw new UnauthorizedException("Mot de passe invalide.");
         }
 
         return (user!.Id, await this.generateToken(user));
     }
 
-    private async Task<string> generateToken(User user) {
+    private async Task<string> generateToken(User user)
+    {
         var key = new SymmetricSecurityKey(
             Convert.FromBase64String(jwtConfig.Key!)
         );
@@ -124,7 +133,8 @@ public class AuthService(
         );
 
         // Persists the token id to the database to handle the logout process.
-        await this.userRepository.CreateUserToken(new UserToken {
+        await this.userRepository.CreateUserToken(new UserToken
+        {
             Id = Guid.NewGuid(),
             Jti = jti,
             UserId = user.Id,
@@ -134,19 +144,23 @@ public class AuthService(
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public async Task<bool> IsTokenActiveAsync(string jti) {
+    public async Task<bool> IsTokenActiveAsync(string jti)
+    {
         return await this.userRepository.ExistsUserTokenByJti(jti);
     }
 
-    public async Task<int> CleanupExpiredTokensAsync() {
+    public async Task<int> CleanupExpiredTokensAsync()
+    {
         return await this.userRepository.DeleteExpiredUserTokensAsync();
     }
 
-    public async Task Logout(string jti) {
+    public async Task Logout(string jti)
+    {
         await this.userRepository.DeleteUserToken(jti);
     }
 
-    public async Task<User?> GetUserById(string userId) {
+    public async Task<User?> GetUserById(string userId)
+    {
         return await this.userRepository.GetUserById(userId);
     }
 }
