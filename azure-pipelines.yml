@@ -1,12 +1,8 @@
-# CI pipeline for Alfred backend (.NET 10).
-# - Trigger: pushes to prod only (PR validation via Azure Repos branch policies).
-# - No secrets / tokens in this file.
-# - Does not provision the database or App Service.
-# - deploy=false by default; a PR must never deploy.
+# CI for Alfred backend. No secrets in this file.
+# PR validation: Branch policies (not pr:). PRs never deploy.
 
 parameters:
   - name: deploy
-    displayName: Deploy the published API zip to an existing App Service
     type: boolean
     default: false
 
@@ -15,92 +11,73 @@ trigger:
     include:
       - prod
 
-# Do not use pr: here. Wire PR builds with Branch policies > Build validation.
-
 pool:
   vmImage: ubuntu-latest
 
 variables:
   buildConfiguration: Release
-  dotnetSdkVersion: "10.0.x"
   solution: backend.sln
   apiProject: backend.api/backend.api.csproj
-  # Optional CD (only when parameters.deploy is true). Set in the
-  # pipeline UI / variable group — never commit secrets.
-  azureServiceConnection: ""
-  azureWebAppName: ""
+  # Fill when you enable deploy (Project settings > Service connections).
+  azureServiceConnection: REMPLACER_CONNEXION_SERVICE
+  azureWebAppName: REMPLACER_NOM_APP_SERVICE
 
 stages:
   - stage: CI
-    displayName: Restore, format, build, test, publish
     jobs:
-      - job: BuildTestPublish
-        displayName: Build, test and publish
+      - job: build
         steps:
-          - checkout: self
-            displayName: Checkout sources
-
           - task: UseDotNet@2
-            displayName: Install .NET SDK
+            displayName: .NET 10
             inputs:
               packageType: sdk
-              version: $(dotnetSdkVersion)
+              version: 10.0.x
 
-          - task: DotNetCoreCLI@2
+          - script: dotnet restore $(solution)
             displayName: Restore
-            inputs:
-              command: restore
-              projects: $(solution)
 
-          # Local fix if this fails: dotnet format $(solution)  (J1)
-          - script: dotnet format "$(solution)" --verify-no-changes --no-restore
-            displayName: Format check
+          # Local fix: dotnet format whitespace $(solution) --no-restore --exclude backend.dal/Migrations
+          - script: >-
+              dotnet format whitespace $(solution)
+              --verify-no-changes
+              --no-restore
+              --exclude backend.dal/Migrations
+            displayName: Format
 
-          - task: DotNetCoreCLI@2
+          - script: dotnet build $(solution) -c $(buildConfiguration) --no-restore
             displayName: Build
-            inputs:
-              command: build
-              projects: $(solution)
-              arguments: --configuration $(buildConfiguration) --no-restore
 
-          - task: DotNetCoreCLI@2
-            displayName: Tests and coverage
-            inputs:
-              command: test
-              projects: $(solution)
-              arguments: >-
-                --configuration $(buildConfiguration)
-                --no-build
-                --collect:"XPlat Code Coverage"
-                --results-directory $(Agent.TempDirectory)/testresults
-              publishTestResults: true
+          - script: >-
+              dotnet test $(solution)
+              -c $(buildConfiguration)
+              --no-build
+              --collect "XPlat Code Coverage"
+              --results-directory $(Agent.TempDirectory)/testresults
+            displayName: Tests
 
           - task: PublishCodeCoverageResults@2
-            displayName: Publish coverage
+            displayName: Coverage
             inputs:
               summaryFileLocation: $(Agent.TempDirectory)/testresults/**/coverage.cobertura.xml
               failIfCoverageEmpty: false
 
           - task: DotNetCoreCLI@2
-            displayName: Publish API
+            displayName: Publish
             inputs:
               command: publish
               publishWebProjects: false
               projects: $(apiProject)
-              arguments: >-
-                --configuration $(buildConfiguration)
-                --output $(Build.ArtifactStagingDirectory)/api
+              arguments: -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)/api
               zipAfterPublish: true
               modifyOutputPath: false
 
           - task: PublishPipelineArtifact@1
-            displayName: Publish artifact api
+            displayName: Artifact api
             inputs:
               targetPath: $(Build.ArtifactStagingDirectory)
               artifact: api
 
   - stage: Deploy
-    displayName: Deploy (optional)
     dependsOn: CI
     condition: >-
       and(
@@ -110,30 +87,13 @@ stages:
         eq(variables['Build.SourceBranch'], 'refs/heads/prod')
       )
     jobs:
-      - job: DeployApi
-        displayName: Deploy api.zip to existing App Service
+      - job: deploy
         steps:
-          - checkout: none
-
-          - task: DownloadPipelineArtifact@2
-            displayName: Download artifact api
-            inputs:
-              buildType: current
-              artifactName: api
-              targetPath: $(Pipeline.Workspace)/api
-
-          - script: |
-              set -e
-              if [ -z "$(azureServiceConnection)" ] || [ -z "$(azureWebAppName)" ]; then
-                echo "Deploy requested but azureServiceConnection / azureWebAppName are not set."
-                echo "Configure them in the pipeline variables (existing App Service only)."
-                exit 1
-              fi
-              echo "Deploy target App Service: $(azureWebAppName)"
-            displayName: Check deploy variables
+          - download: current
+            artifact: api
 
           - task: AzureWebApp@1
-            displayName: Deploy to App Service
+            displayName: App Service
             inputs:
               azureSubscription: $(azureServiceConnection)
               appType: webAppLinux

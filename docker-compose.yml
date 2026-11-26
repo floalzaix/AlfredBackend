@@ -1,39 +1,24 @@
-# Local development stack for Alfred backend.
-# - db: PostgreSQL from backend.dal/Dockerfile (dev only; password is tracked)
-# - api: optional, built from the root Dockerfile
-#
-# Usage:
-#   docker compose up -d db
-#   docker compose up --build api   # needs DALConfig__ConnectionString + JwtConfig__Key
-
 services:
   db:
     build:
       context: ./backend.dal
       dockerfile: Dockerfile
-    container_name: alfred-db
     ports:
       - "4040:4040"
     volumes:
       - alfred_pgdata:/var/lib/postgresql
-    restart: unless-stopped
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: alfred-api
+    build: .
     depends_on:
       - db
     ports:
       - "5050:8080"
+    env_file:
+      - .env
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       AppConfig__UseHttpsRedirection: "false"
-      # Set via shell / .env (never commit real secrets):
-      # DALConfig__ConnectionString: Host=db;Port=4040;Database=alfred_db;Username=...;Password=...
-      # JwtConfig__Key: <base64-signing-key>
-      Cors__AllowedOrigins__0: http://localhost:8080
     profiles:
       - full
 

@@ -153,6 +153,7 @@ artifacts/
 *.coverage
 *.coveragexml
 coverage/
+coverage-report/
 coverage*.json
 coverage*.xml
 coverage*.info

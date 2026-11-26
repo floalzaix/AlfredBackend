@@ -1,9 +1,3 @@
-# EditorConfig for Alfred backend (.NET / C#)
-# https://editorconfig.org
-# Used by `dotnet format` locally (J1) and in Azure Pipelines CI.
-# Keep rules light: match existing project style; do not reorder
-# intentional import blocks (see "// Perso" sections).
-
 root = true
 
 [*]
@@ -13,17 +7,8 @@ indent_size = 4
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-[*.{cs,csx}]
-indent_size = 4
-
-[*.{csproj,props,targets,json,yml,yaml}]
+[*.{csproj,json,yml,yaml}]
 indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
-max_line_length = off
-
-# Do not force import sorting or style refactors — whitespace only in CI.
-[*.cs]
-dotnet_sort_system_directives_first = false
-dotnet_separate_import_directive_groups = true

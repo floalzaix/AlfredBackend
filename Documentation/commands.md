@@ -58,22 +58,54 @@ Connection string: `backend.api/appsettings.Development.json` (`DALConfig`).
 The full local string (including password) is tracked on purpose for Docker.
 
 
-## Cloud / production configuration
+## Local quality (CI parity)
 
-`ASPNETCORE_ENVIRONMENT` must be `Production` in the cloud.
-Never deploy with `Development` or `Testing`.
+```
+dotnet restore backend.sln
+dotnet format whitespace backend.sln --no-restore --exclude backend.dal/Migrations
+dotnet build backend.sln
+dotnet test backend.sln --collect "XPlat Code Coverage"
+```
 
-### Secrets (connection string + JWT)
+`dotnet format whitespace` may rewrite files — review and commit.
+CI uses the same command with `--verify-no-changes`.
 
-Store these as **secrets** (App Service connection/app settings marked
-secret, Key Vault, container secret, or equivalent). Never commit them.
 
-| Secret / env | Purpose |
+## Cloud / App Service config
+
+Same keys as `appsettings` / DI (`DALConfig`, `JwtConfig`, `AppConfig`,
+`Cors`). In Azure they become env vars with `__` for nested keys.
+Never use `Development` or `Testing` in the cloud.
+
+Replace `APP` and `RG` with your App Service name and resource group.
+
+### Non-secrets
+
+```
+az webapp config appsettings set --name APP --resource-group RG --settings ^
+  ASPNETCORE_ENVIRONMENT=Production ^
+  AppConfig__UseHttpsRedirection=false ^
+  Cors__AllowedOrigins__0=https://YOUR_FRONTEND_ORIGIN
+```
+
+### Secrets
+
+Where to get them:
+
+| Key | Source |
 | --- | --- |
-| `DALConfig__ConnectionString` | **Full** cloud Postgres string (password included). Prefer a dedicated DB user, `Ssl Mode=Require`, `Trust Server Certificate=false` |
-| `JwtConfig__Key` | Signing key: **new** random key, distinct from local, ≥ 32 bytes Base64 (≥ 44 chars). Generate with `backend.api/genkey.ps1` then set the value in cloud secrets |
+| `DALConfig__ConnectionString` | Azure Postgres (or your DB) portal → connection info; full Npgsql string with password, prefer `Ssl Mode=Require;Trust Server Certificate=false` |
+| `JwtConfig__Key` | Generate new (≠ local): `backend.api/genkey.ps1` (≥ 44 Base64 chars) |
 
-Local equivalents (once per machine, not per terminal):
+```
+az webapp config appsettings set --name APP --resource-group RG --settings ^
+  DALConfig__ConnectionString="Host=...;Port=5432;Database=...;Username=...;Password=...;Ssl Mode=Require;Trust Server Certificate=false" ^
+  JwtConfig__Key="PASTE_GENKEY_OUTPUT"
+```
+
+In the portal, mark those two as secret if the UI offers it (or use Key Vault references).
+
+### Local user-secrets (dev machine only)
 
 ```
 cd backend.api
@@ -81,25 +113,7 @@ dotnet user-secrets set "DALConfig:ConnectionString" "<full-connection-string>"
 dotnet user-secrets set "JwtConfig:Key" "<base64-signing-key>"
 ```
 
-User-secrets live under
-`%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\` and load in
-Development. For the local Docker DB, prefer the connection string in
-`appsettings.Development.json` instead of user-secrets.
-
-### Plain config (non-secret)
-
-Set these as normal application settings (not secrets):
-
-| Env variable | Purpose |
-| --- | --- |
-| `ASPNETCORE_ENVIRONMENT` | Must be `Production` |
-| `AppConfig__UseHttpsRedirection` | `false` on App Service (HTTPS Only terminates TLS at the proxy). Do **not** turn off App Service HTTPS Only |
-| `Cors__AllowedOrigins__0` | Exact frontend origin (no wildcards). Use `__1`, `__2`, … for more |
-
-`appsettings.Production.json` already sets
-`AppConfig:UseHttpsRedirection` to `false` and leaves CORS empty so
-origins come from env. Tracked `appsettings.json` does **not** contain
-a production connection string.
+For the local Docker DB, prefer `appsettings.Development.json` instead.
 
 
 ## JWT (user-secrets)
