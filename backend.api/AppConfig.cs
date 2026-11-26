@@ -15,7 +15,8 @@ namespace Backend.API;
 //  Config
 //
 
-public class AppConfig {
+public class AppConfig
+{
     // false on Azure App Service when HTTPS Only terminates TLS at the proxy
     public bool UseHttpsRedirection { get; set; } = true;
 }

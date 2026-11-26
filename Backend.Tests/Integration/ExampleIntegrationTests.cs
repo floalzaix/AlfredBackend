@@ -22,14 +22,16 @@ using System.Text.Json.Serialization;
 //
 
 [Collection("Integration")]
-public class ExampleIntegrationTests {
+public class ExampleIntegrationTests
+{
     //
     //  Properties
     //
 
     private readonly HttpClient client;
 
-    private static readonly JsonSerializerOptions JsonOptions = new() {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
         PropertyNameCaseInsensitive = true
     };
 
@@ -37,7 +39,8 @@ public class ExampleIntegrationTests {
     //  Constructor
     //
 
-    public ExampleIntegrationTests(AlfredWebApplicationFactory factory) {
+    public ExampleIntegrationTests(AlfredWebApplicationFactory factory)
+    {
         this.client = factory.CreateClient();
     }
 
@@ -46,7 +49,8 @@ public class ExampleIntegrationTests {
     //
 
     [Fact]
-    public async Task HelloWorld_WithoutToken_ShouldReturn401() {
+    public async Task HelloWorld_WithoutToken_ShouldReturn401()
+    {
         HttpResponseMessage response = await this.client.GetAsync(
             "/api/example/hello_world?Name=Bob"
         );
@@ -55,7 +59,8 @@ public class ExampleIntegrationTests {
     }
 
     [Fact]
-    public async Task HelloWorld_WithValidToken_ShouldReturnNamedUser() {
+    public async Task HelloWorld_WithValidToken_ShouldReturnNamedUser()
+    {
         string token = await this.RegisterAsync();
 
         using var request = new HttpRequestMessage(
@@ -83,7 +88,8 @@ public class ExampleIntegrationTests {
     }
 
     [Fact]
-    public async Task HelloWorld_WithInvalidName_ShouldReturn400() {
+    public async Task HelloWorld_WithInvalidName_ShouldReturn400()
+    {
         string token = await this.RegisterAsync();
 
         using var request = new HttpRequestMessage(
@@ -98,10 +104,12 @@ public class ExampleIntegrationTests {
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private async Task<string> RegisterAsync() {
+    private async Task<string> RegisterAsync()
+    {
         HttpResponseMessage response = await this.client.PostAsJsonAsync(
             "/api/auth/register",
-            new {
+            new
+            {
                 username = "alice",
                 email = $"example-{Guid.NewGuid():N}@example.com",
                 password = "Password1!"
@@ -121,7 +129,8 @@ public class ExampleIntegrationTests {
     //  Nested types
     //
 
-    private sealed class TokenResponse {
+    private sealed class TokenResponse
+    {
         [JsonPropertyName("access_token")]
         public string AccessToken { get; set; } = string.Empty;
 

@@ -12,21 +12,25 @@
 
 namespace Backend.Tests.Unit.Services;
 
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
-using Moq;
 using Backend.BLL;
 using Backend.BLL.Services;
 using Backend.DAL.Interfaces;
 using Backend.Models;
 using Backend.Models.Exceptions;
 
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+
+using Moq;
+
+using System.IdentityModel.Tokens.Jwt;
+
 //
 //  Class
 //
 
-public class AuthServiceTests {
+public class AuthServiceTests
+{
     //
     //  Properties
     //
@@ -43,8 +47,10 @@ public class AuthServiceTests {
     //  Constructor
     //
 
-    public AuthServiceTests() {
-        var jwtOptions = Options.Create(new JwtConfig {
+    public AuthServiceTests()
+    {
+        var jwtOptions = Options.Create(new JwtConfig
+        {
             Issuer = "alfred_backend_test",
             Audience = "alfred_backend_test",
             Key = TestJwtKey,
@@ -63,10 +69,12 @@ public class AuthServiceTests {
     //
 
     [Fact]
-    public async Task Register_WhenEmailAlreadyExists_ShouldThrowConflict() {
+    public async Task Register_WhenEmailAlreadyExists_ShouldThrowConflict()
+    {
         this.authRepo
             .Setup(r => r.GetUserByEmail("taken@example.com"))
-            .ReturnsAsync(new User {
+            .ReturnsAsync(new User
+            {
                 Id = Guid.NewGuid(),
                 Username = "existing",
                 Email = "taken@example.com",
@@ -91,7 +99,8 @@ public class AuthServiceTests {
     }
 
     [Fact]
-    public async Task Register_WhenEmailIsFree_ShouldPersistHashedUserAndReturnJwt() {
+    public async Task Register_WhenEmailIsFree_ShouldPersistHashedUserAndReturnJwt()
+    {
         User? createdUser = null;
         UserToken? createdToken = null;
 
@@ -160,7 +169,8 @@ public class AuthServiceTests {
     //
 
     [Fact]
-    public async Task Login_WhenUserMissing_ShouldThrowUnauthorized() {
+    public async Task Login_WhenUserMissing_ShouldThrowUnauthorized()
+    {
         this.authRepo
             .Setup(r => r.GetUserByEmail("unknown@example.com"))
             .ReturnsAsync((User?)null);
@@ -183,8 +193,10 @@ public class AuthServiceTests {
     }
 
     [Fact]
-    public async Task Login_WhenPasswordIsWrong_ShouldThrowUnauthorized() {
-        var user = new User {
+    public async Task Login_WhenPasswordIsWrong_ShouldThrowUnauthorized()
+    {
+        var user = new User
+        {
             Id = Guid.NewGuid(),
             Username = "alice",
             Email = "alice@example.com",
@@ -215,8 +227,10 @@ public class AuthServiceTests {
     }
 
     [Fact]
-    public async Task Login_WhenCredentialsAreValid_ShouldReturnUserIdAndPersistToken() {
-        var user = new User {
+    public async Task Login_WhenCredentialsAreValid_ShouldReturnUserIdAndPersistToken()
+    {
+        var user = new User
+        {
             Id = Guid.NewGuid(),
             Username = "alice",
             Email = "alice@example.com",
@@ -272,7 +286,8 @@ public class AuthServiceTests {
     //
 
     [Fact]
-    public async Task IsTokenActiveAsync_ShouldAskTheRepository() {
+    public async Task IsTokenActiveAsync_ShouldAskTheRepository()
+    {
         this.authRepo
             .Setup(r => r.ExistsUserTokenByJti("active-jti"))
             .ReturnsAsync(true);
@@ -289,7 +304,8 @@ public class AuthServiceTests {
     }
 
     [Fact]
-    public async Task Logout_ShouldDeleteTokenByJti() {
+    public async Task Logout_ShouldDeleteTokenByJti()
+    {
         this.authRepo
             .Setup(r => r.DeleteUserToken("to-revoke"))
             .Returns(Task.CompletedTask);
@@ -303,7 +319,8 @@ public class AuthServiceTests {
     }
 
     [Fact]
-    public async Task CleanupExpiredTokensAsync_ShouldReturnDeletedCount() {
+    public async Task CleanupExpiredTokensAsync_ShouldReturnDeletedCount()
+    {
         this.authRepo
             .Setup(r => r.DeleteExpiredUserTokensAsync())
             .ReturnsAsync(3);
@@ -314,8 +331,10 @@ public class AuthServiceTests {
     }
 
     [Fact]
-    public async Task GetUserById_ShouldReturnRepositoryResult() {
-        var user = new User {
+    public async Task GetUserById_ShouldReturnRepositoryResult()
+    {
+        var user = new User
+        {
             Id = Guid.NewGuid(),
             Username = "alice",
             Email = "alice@example.com",

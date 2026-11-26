@@ -16,7 +16,8 @@ namespace Backend.Models.Exceptions;
 //  AppException
 //  
 
-public class AppException : Exception {
+public class AppException : Exception
+{
     public int StatusCode { get; }
 
     public string Title { get; }
@@ -25,7 +26,8 @@ public class AppException : Exception {
         string message,
         int statusCode,
         string title
-    ) : base(message) {
+    ) : base(message)
+    {
         StatusCode = statusCode;
         Title = title;
     }
@@ -35,10 +37,12 @@ public class AppException : Exception {
 //  UnauthorizedException
 //
 
-public class UnauthorizedException : AppException {
+public class UnauthorizedException : AppException
+{
     public UnauthorizedException(
         string message = "Non autorisé."
-    ) : base(message, 401, "Non autorisé") {
+    ) : base(message, 401, "Non autorisé")
+    {
     }
 }
 
@@ -46,10 +50,12 @@ public class UnauthorizedException : AppException {
 //  NotFoundException
 //
 
-public class NotFoundException : AppException {
+public class NotFoundException : AppException
+{
     public NotFoundException(
         string message = "Ressource introuvable."
-    ) : base(message, 404, "Introuvable") {
+    ) : base(message, 404, "Introuvable")
+    {
     }
 }
 
@@ -57,9 +63,11 @@ public class NotFoundException : AppException {
 //  ConflictException
 //
 
-public class ConflictException : AppException {
+public class ConflictException : AppException
+{
     public ConflictException(
         string message = "Conflit."
-    ) : base(message, 409, "Conflit") {
+    ) : base(message, 409, "Conflit")
+    {
     }
 }

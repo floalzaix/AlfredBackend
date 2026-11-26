@@ -18,13 +18,15 @@ using Backend.Models;
 //  Class
 //
 
-public class ExampleServiceTests {
+public class ExampleServiceTests
+{
     //
     //  Methods
     //
 
     [Fact]
-    public void GetExempleUser_ShouldReturnUserWithRequestedName() {
+    public void GetExempleUser_ShouldReturnUserWithRequestedName()
+    {
         var service = new ExampleService();
 
         ExempleUser result = service.GetExempleUser("Alice");
@@ -33,7 +35,8 @@ public class ExampleServiceTests {
     }
 
     [Fact]
-    public void GetExempleUser_ShouldAssignNonEmptyId() {
+    public void GetExempleUser_ShouldAssignNonEmptyId()
+    {
         var service = new ExampleService();
 
         ExempleUser result = service.GetExempleUser("Bob");
@@ -42,7 +45,8 @@ public class ExampleServiceTests {
     }
 
     [Fact]
-    public void GetExempleUser_ShouldAssignDistinctIdsAcrossCalls() {
+    public void GetExempleUser_ShouldAssignDistinctIdsAcrossCalls()
+    {
         var service = new ExampleService();
 
         ExempleUser first = service.GetExempleUser("Same");

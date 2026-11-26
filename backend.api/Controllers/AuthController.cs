@@ -5,6 +5,7 @@
 using Backend.API.DTOs;
 using Backend.BLL.Interfaces;
 using Backend.Models;
+
 using System.Security.Claims;
 
 namespace Backend.API.Controllers;
@@ -15,7 +16,8 @@ namespace Backend.API.Controllers;
 
 public class AuthController(
     IAuthService authService
-) {
+)
+{
     //
     //  Properties
     //
@@ -26,7 +28,8 @@ public class AuthController(
     //  Methods
     //
 
-    public async Task<IResult> Register(RegisterRequestDTO registerRequestDTO) {
+    public async Task<IResult> Register(RegisterRequestDTO registerRequestDTO)
+    {
         // Return the jwt token for the user to use it directly.
         string token = await this.authService.Register(
             registerRequestDTO.Username,
@@ -34,27 +37,32 @@ public class AuthController(
             registerRequestDTO.Password
         );
 
-        return Results.Ok(new {
-            access_token = token,
-            token_type = "Bearer"
-        });
-    }
-    
-    public async Task<IResult> Login(LoginRequestDTO loginRequestDTO) {
-        var (_, token) = await this.authService.Login(
-            loginRequestDTO.Email,
-            loginRequestDTO.Password
-        );
-        return Results.Ok(new {
+        return Results.Ok(new
+        {
             access_token = token,
             token_type = "Bearer"
         });
     }
 
-    public async Task<IResult> Logout(ClaimsPrincipal claimsPrincipal) {
+    public async Task<IResult> Login(LoginRequestDTO loginRequestDTO)
+    {
+        var (_, token) = await this.authService.Login(
+            loginRequestDTO.Email,
+            loginRequestDTO.Password
+        );
+        return Results.Ok(new
+        {
+            access_token = token,
+            token_type = "Bearer"
+        });
+    }
+
+    public async Task<IResult> Logout(ClaimsPrincipal claimsPrincipal)
+    {
         string? jti = claimsPrincipal.FindFirst("jti")?.Value;
-        
-        if (jti == null) {
+
+        if (jti == null)
+        {
             return Results.Unauthorized();
         }
 
@@ -68,10 +76,12 @@ public class AuthController(
      * @param claimsPrincipal The claims principal dirived from the JWT token.
      * @return The User.
      */
-    public async Task<IResult> Me(ClaimsPrincipal claimsPrincipal) {
+    public async Task<IResult> Me(ClaimsPrincipal claimsPrincipal)
+    {
         string? userId = claimsPrincipal.FindFirst("sub")?.Value;
 
-        if (userId == null) {
+        if (userId == null)
+        {
             return Results.Unauthorized();
         }
 
@@ -79,7 +89,8 @@ public class AuthController(
         User? user = await this.authService.GetUserById(userId)
             ?? throw new Exception("Utilisateur introuvable.");
 
-        return Results.Ok(new {
+        return Results.Ok(new
+        {
             id = user.Id,
             username = user.Username,
             email = user.Email

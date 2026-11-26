@@ -18,7 +18,8 @@ using System.ComponentModel.DataAnnotations;
 //  Config
 //
 
-public class DALConfig {
+public class DALConfig
+{
     // Full Npgsql string including password.
     // Dev: appsettings.Development.json. Prod: secret / env only.
     [Required(ErrorMessage = "ConnectionString is required in DALConfig")]

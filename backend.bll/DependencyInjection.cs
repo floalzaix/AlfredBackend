@@ -27,13 +27,14 @@
  *     repetitive manual object creation and wiring.
  */
 
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.Identity;
 using Backend.BLL.Interfaces;
 using Backend.BLL.Services;
 using Backend.DAL;
-using Backend.Models;
 using Backend.DAL.Interfaces;
+using Backend.Models;
+
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Backend.BLL;
 
@@ -41,9 +42,11 @@ namespace Backend.BLL;
 //  Class
 //
 
-public static class DependencyInjection {
+public static class DependencyInjection
+{
 
-    public static IServiceCollection AddBLL(this IServiceCollection services) {
+    public static IServiceCollection AddBLL(this IServiceCollection services)
+    {
         services.AddDAL();
 
         // Adding the JWT configuration file to the app

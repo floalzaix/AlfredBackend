@@ -27,9 +27,10 @@
  *     repetitive manual object creation and wiring.
  */
 
-using Microsoft.AspNetCore.Authorization;
 using Backend.API.Controllers;
 using Backend.BLL;
+
+using Microsoft.AspNetCore.Authorization;
 
 namespace Backend.API;
 
@@ -37,8 +38,10 @@ namespace Backend.API;
 //  Class
 //
 
-public static class DependencyInjection {
-    public static IServiceCollection AddAPI(this IServiceCollection services) {
+public static class DependencyInjection
+{
+    public static IServiceCollection AddAPI(this IServiceCollection services)
+    {
         services.AddBLL();
 
         // Adding the API host configuration (HTTPS redirection, …)
@@ -46,7 +49,7 @@ public static class DependencyInjection {
             .BindConfiguration("AppConfig")
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        
+
         // services.AddScoped<Interface, Class(implementating the interface)>();
         // or
         // services.AddScoped<Class>();
@@ -74,11 +77,13 @@ public static class DependencyInjection {
         services.AddScoped<IAuthorizationHandler, ActiveJtiHandler>();
 
         services.AddAuthorizationBuilder()
-            .AddPolicy("User", policy => {
+            .AddPolicy("User", policy =>
+            {
                 policy.RequireRole("User", "Admin");
                 policy.AddRequirements(new ActiveJtiRequirement());
             })
-            .AddPolicy("Admin", policy => {
+            .AddPolicy("Admin", policy =>
+            {
                 policy.RequireRole("Admin");
                 policy.AddRequirements(new ActiveJtiRequirement());
             });
@@ -86,7 +91,7 @@ public static class DependencyInjection {
         //
         //  Exception handler
         //
-        
+
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
 

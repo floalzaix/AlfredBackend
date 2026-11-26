@@ -13,10 +13,10 @@
 
 namespace Backend.API;
 
+using Backend.Models.Exceptions;
+
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-
-using Backend.Models.Exceptions;
 
 //
 //  ErrorHandler
@@ -24,15 +24,18 @@ using Backend.Models.Exceptions;
 
 public class GlobalExceptionHandler(
     ILogger<GlobalExceptionHandler> logger
-) : IExceptionHandler {
+) : IExceptionHandler
+{
     private readonly ILogger<GlobalExceptionHandler> _logger = logger;
 
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
         CancellationToken cancellationToken
-    ) {
-        if (exception is AppException appException) {
+    )
+    {
+        if (exception is AppException appException)
+        {
             _logger.LogWarning(
                 exception,
                 "Handled application exception"
@@ -41,7 +44,8 @@ public class GlobalExceptionHandler(
             httpContext.Response.StatusCode = appException.StatusCode;
 
             await httpContext.Response.WriteAsJsonAsync(
-                new ProblemDetails {
+                new ProblemDetails
+                {
                     Status = appException.StatusCode,
                     Title = appException.Title,
                     Detail = appException.Message,
@@ -59,7 +63,8 @@ public class GlobalExceptionHandler(
             StatusCodes.Status500InternalServerError;
 
         await httpContext.Response.WriteAsJsonAsync(
-            new ProblemDetails {
+            new ProblemDetails
+            {
                 Status = StatusCodes.Status500InternalServerError,
                 Title = "Une erreur inattendue s'est produite.",
                 Detail = "Veuillez réessayer plus tard.",

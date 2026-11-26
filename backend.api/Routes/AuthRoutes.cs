@@ -15,10 +15,10 @@
 //  Imports
 //
 
-using System.Security.Claims;
-
-using Backend.API.DTOs;
 using Backend.API.Controllers;
+using Backend.API.DTOs;
+
+using System.Security.Claims;
 
 namespace Backend.API.Routes;
 
@@ -26,38 +26,43 @@ namespace Backend.API.Routes;
 //  Class
 //
 
-public static class AuthRoutes {
-    public static void MapAuthRoutes(this IEndpointRouteBuilder mainRouter) {
+public static class AuthRoutes
+{
+    public static void MapAuthRoutes(this IEndpointRouteBuilder mainRouter)
+    {
         var authRouter = mainRouter.MapGroup("/auth");
 
         //
         //  Routes
         //
 
-        authRouter.MapPost("/register", async(
+        authRouter.MapPost("/register", async (
             AuthController authController,
             RegisterRequestDTO registerRequestDTO
-        ) => {
+        ) =>
+        {
             return await authController.Register(registerRequestDTO);
         })
         .Produces(StatusCodes.Status200OK)
         .ProducesValidationProblem()
         .ProducesProblem(StatusCodes.Status409Conflict);
 
-        authRouter.MapPost("/login", async(
+        authRouter.MapPost("/login", async (
             AuthController authController,
             LoginRequestDTO loginRequestDTO
-        ) => {
+        ) =>
+        {
             return await authController.Login(loginRequestDTO);
         })
         .Produces(StatusCodes.Status200OK)
         .ProducesValidationProblem()
         .ProducesProblem(StatusCodes.Status401Unauthorized);
 
-        authRouter.MapPost("/logout", async(
+        authRouter.MapPost("/logout", async (
             AuthController authController,
             ClaimsPrincipal claimsPrincipal
-        ) => {
+        ) =>
+        {
             return await authController.Logout(claimsPrincipal);
         })
         .RequireAuthorization("User")
@@ -65,10 +70,11 @@ public static class AuthRoutes {
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status403Forbidden);
 
-        authRouter.MapGet("/me", async(
+        authRouter.MapGet("/me", async (
             AuthController authController,
             ClaimsPrincipal claimsPrincipal
-        ) => {
+        ) =>
+        {
             return await authController.Me(claimsPrincipal);
         })
         .RequireAuthorization("User")

@@ -13,8 +13,8 @@
 //  Imports
 //
 
-using Backend.Models;
 using Backend.BLL.Interfaces;
+using Backend.Models;
 
 namespace Backend.BLL.Services;
 
@@ -22,10 +22,13 @@ namespace Backend.BLL.Services;
 //  Class
 //
 
-public class ExampleService: IExampleService {
+public class ExampleService : IExampleService
+{
 
-    public ExempleUser GetExempleUser(string name) {
-        return new ExempleUser {
+    public ExempleUser GetExempleUser(string name)
+    {
+        return new ExempleUser
+        {
             Id = Guid.NewGuid(),
             Name = name
         };

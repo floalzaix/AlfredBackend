@@ -27,11 +27,12 @@
  *     repetitive manual object creation and wiring.
  */
 
+using Backend.DAL.Interfaces;
+using Backend.DAL.Repositories;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Backend.DAL.Interfaces;
-using Backend.DAL.Repositories;
 
 namespace Backend.DAL;
 
@@ -39,8 +40,10 @@ namespace Backend.DAL;
 //  Class
 //
 
-public static class DependencyInjection {
-    public static IServiceCollection AddDAL(this IServiceCollection services) {
+public static class DependencyInjection
+{
+    public static IServiceCollection AddDAL(this IServiceCollection services)
+    {
         // Adding the configuration file to the app
         services.AddOptions<DALConfig>()
             .BindConfiguration("DALConfig")
@@ -48,7 +51,8 @@ public static class DependencyInjection {
             .ValidateOnStart();
 
         // Register AppDbContext with the connection string from DALConfig
-        services.AddDbContext<AppDbContext>((sp, options) => {
+        services.AddDbContext<AppDbContext>((sp, options) =>
+        {
             var dalConfig = sp.GetRequiredService<IOptions<DALConfig>>().Value;
             options.UseNpgsql(dalConfig.ConnectionString);
         });

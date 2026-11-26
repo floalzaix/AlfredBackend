@@ -17,5 +17,6 @@ namespace Backend.Tests.Integration;
 
 [CollectionDefinition("Integration", DisableParallelization = true)]
 public class IntegrationCollection
-    : ICollectionFixture<AlfredWebApplicationFactory> {
+    : ICollectionFixture<AlfredWebApplicationFactory>
+{
 }

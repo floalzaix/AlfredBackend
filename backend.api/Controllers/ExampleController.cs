@@ -12,8 +12,8 @@
 //
 
 using Backend.API.DTOs;
-using Backend.Models;
 using Backend.BLL.Interfaces;
+using Backend.Models;
 
 namespace Backend.API.Controllers;
 
@@ -23,7 +23,8 @@ namespace Backend.API.Controllers;
 
 public class ExampleController(
     IExampleService _exampleService
-) {
+)
+{
 
     /**
      * This function is called when the route is called.
@@ -35,7 +36,8 @@ public class ExampleController(
      * @param hw The DTO from the route to validate the input.
      * @return The user with the given name.
      */
-    public ExempleUser GetHelloWorld(GetHelloWorldDTO hw) {
+    public ExempleUser GetHelloWorld(GetHelloWorldDTO hw)
+    {
         return _exampleService.GetExempleUser(
             hw.Name
         );

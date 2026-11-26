@@ -15,8 +15,9 @@
 //  Imports
 //
 
-using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+
+using System.ComponentModel.DataAnnotations;
 
 /**
  * 
@@ -27,7 +28,8 @@ namespace Backend.API.DTOs;
 //  Class
 //
 
-public sealed class GetHelloWorldDTO {
+public sealed class GetHelloWorldDTO
+{
     [FromQuery]
     [Required(ErrorMessage = "Le nom est requis !")]
     [MinLength(1, ErrorMessage = "Le nom ne doit pas être vide !")]

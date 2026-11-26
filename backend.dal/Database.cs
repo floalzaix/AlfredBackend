@@ -23,8 +23,9 @@
 //  Imports
 //
 
-using Microsoft.EntityFrameworkCore;
 using Backend.Models;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.DAL;
 
@@ -34,7 +35,8 @@ namespace Backend.DAL;
 
 public class AppDbContext(
     DbContextOptions<AppDbContext> options
-) : DbContext(options) {
+) : DbContext(options)
+{
     //
     //  Entities registry
     //
@@ -49,7 +51,8 @@ public class AppDbContext(
     //  Constraints registry
     //
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) {
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
         base.OnModelCreating(modelBuilder);
 
         // modelBuilder.Entity<MyExampleModel>(model => {
@@ -59,7 +62,8 @@ public class AppDbContext(
         //         .OnDelete(DeleteBehavior.Restrict); <- Could be DeleteBehavior.Cascade too
         // });
 
-        modelBuilder.Entity<User>(user => {
+        modelBuilder.Entity<User>(user =>
+        {
             user.HasIndex(u => u.Email).IsUnique();
             user.Property(u => u.Username).HasMaxLength(64);
             user.Property(u => u.Email).HasMaxLength(256);
@@ -67,7 +71,8 @@ public class AppDbContext(
             user.Property(u => u.Role).HasMaxLength(32);
         });
 
-        modelBuilder.Entity<UserToken>(userToken => {
+        modelBuilder.Entity<UserToken>(userToken =>
+        {
             userToken.HasOne<User>()
                 .WithMany()
                 .HasForeignKey(ut => ut.UserId)
