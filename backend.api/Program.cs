@@ -13,6 +13,7 @@
 //
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
@@ -123,6 +124,9 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
+// Path base must be early so auth / routing see /api correctly.
+app.UsePathBase("/api");
+
 //
 //  CORS usage
 //
@@ -145,13 +149,18 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
-app.UseHttpsRedirection();
+
+// App Service: keep HTTPS Only on; set AppConfig:UseHttpsRedirection
+// to false so the app does not redirect behind the TLS-terminating proxy.
+var appConfig = app.Services.GetRequiredService<IOptions<AppConfig>>().Value;
+if (appConfig.UseHttpsRedirection)
+{
+    app.UseHttpsRedirection();
+}
 
 //
 //  Routes
 //
-
-app.UsePathBase("/api");
 
 app.MapExampleRoutes();
 app.MapAuthRoutes();

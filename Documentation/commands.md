@@ -55,18 +55,65 @@ Follow PostgreSQL logs.
 | Username / Password | see `backend.dal/Dockerfile` |
 
 Connection string: `backend.api/appsettings.Development.json` (`DALConfig`).
+The full local string (including password) is tracked on purpose for Docker.
+
+
+## Cloud / production configuration
+
+`ASPNETCORE_ENVIRONMENT` must be `Production` in the cloud.
+Never deploy with `Development` or `Testing`.
+
+### Secrets (connection string + JWT)
+
+Store these as **secrets** (App Service connection/app settings marked
+secret, Key Vault, container secret, or equivalent). Never commit them.
+
+| Secret / env | Purpose |
+| --- | --- |
+| `DALConfig__ConnectionString` | **Full** cloud Postgres string (password included). Prefer a dedicated DB user, `Ssl Mode=Require`, `Trust Server Certificate=false` |
+| `JwtConfig__Key` | Signing key: **new** random key, distinct from local, ≥ 32 bytes Base64 (≥ 44 chars). Generate with `backend.api/genkey.ps1` then set the value in cloud secrets |
+
+Local equivalents (once per machine, not per terminal):
+
+```
+cd backend.api
+dotnet user-secrets set "DALConfig:ConnectionString" "<full-connection-string>"
+dotnet user-secrets set "JwtConfig:Key" "<base64-signing-key>"
+```
+
+User-secrets live under
+`%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\` and load in
+Development. For the local Docker DB, prefer the connection string in
+`appsettings.Development.json` instead of user-secrets.
+
+### Plain config (non-secret)
+
+Set these as normal application settings (not secrets):
+
+| Env variable | Purpose |
+| --- | --- |
+| `ASPNETCORE_ENVIRONMENT` | Must be `Production` |
+| `AppConfig__UseHttpsRedirection` | `false` on App Service (HTTPS Only terminates TLS at the proxy). Do **not** turn off App Service HTTPS Only |
+| `Cors__AllowedOrigins__0` | Exact frontend origin (no wildcards). Use `__1`, `__2`, … for more |
+
+`appsettings.Production.json` already sets
+`AppConfig:UseHttpsRedirection` to `false` and leaves CORS empty so
+origins come from env. Tracked `appsettings.json` does **not** contain
+a production connection string.
 
 
 ## JWT (user-secrets)
 
 Auth is JWT Bearer. The signing key is **not** in tracked
-appsettings — store it in user-secrets (or an env var) for local dev.
+appsettings — store it in user-secrets (local) or cloud secret
+`JwtConfig__Key`. Generate ≥ 32 random bytes (Base64), e.g.
+`backend.api/genkey.ps1`. Production key must differ from local.
 
 ```
 cd backend.api
 dotnet user-secrets set "JwtConfig:Key" "<base64-signing-key>"
 ```
-Set the JWT signing key used by token generation and local validation.
+
 There is no external verification server: put
 `Authorization: Bearer <access_token>` on protected requests.
 API path base: `/api` (example login: `POST /api/auth/login`).
@@ -80,11 +127,14 @@ The token-cleanup daemon starts automatically with
 
 ## CORS
 
-Allowed origins live under `Cors:AllowedOrigins` in
-`backend.api/appsettings*.json`. Development expects the Angular
-app at `http://localhost:8080`. Update that list if the SPA port
-changes.
+Allowed origins live under `Cors:AllowedOrigins`.
 
+- **Development:** `appsettings.Development.json` →
+  `http://localhost:8080` (Angular). Change the port if the SPA moves
+  (e.g. Vite `5173` for a TP).
+- **Production:** set exact origins via
+  `Cors__AllowedOrigins__0` (no `*`). Adapt when the public frontend
+  URL is known.
 
 ## DOTNET
 
@@ -99,17 +149,52 @@ dotnet build
 Compile the solution to check for errors.
 
 ```
-dotnet run --project backend.api
+dotnet run --project Backend.API
 ```
 Run the API locally on `http://localhost:5050`
 (routes under `/api`, Swagger in Development).
 
 ```
-cd backend.api
+cd Backend.API
 dotnet watch
 ```
-Move into `backend.api` then run the app in hot reload mode
+Move into `Backend.API` then run the app in hot reload mode
 (reloads on every change without retyping a command).
+
+
+## TESTING
+
+Project: `Backend.Tests` (xUnit + Moq). Stop a running
+`dotnet run` of the API first if the build complains that DLLs
+are locked.
+
+```
+dotnet test
+```
+Restore/build as needed, then run **all** unit + integration tests.
+
+```
+dotnet test --filter "FullyQualifiedName~Unit"
+```
+Service unit tests only (fast; Moq, no HTTP host).
+
+```
+dotnet test --filter "FullyQualifiedName~Integration"
+```
+HTTP integration tests only (`WebApplicationFactory` + SQLite).
+
+```
+dotnet test --filter "FullyQualifiedName~AuthServiceTests"
+```
+Run one test class by name (change the filter as needed).
+
+```
+dotnet test --logger "console;verbosity=detailed"
+```
+More output when debugging a failure.
+
+Integration tests do **not** need Docker Postgres: the factory
+replaces EF with SQLite and injects a test JWT key.
 
 
 ## MIGRATIONS (Entity Framework)

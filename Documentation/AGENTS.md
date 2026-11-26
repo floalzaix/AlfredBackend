@@ -73,11 +73,17 @@ protected (`User`). JWT middleware is already wired in `Program.cs`
 token parsing in controllers or services.
 
 **Config** — `JwtConfig` in `appsettings*.json`; signing `Key` from
-user-secrets / env (never commit it). Details: `DAT.md` §9.
+user-secrets / env (never commit it; ≥ 32 random bytes Base64;
+prod key ≠ local). Cloud env checklist: `commands.md`
+(Cloud / production configuration).
 
 **CORS** — policy `Frontend` from `Cors:AllowedOrigins` (dev:
-`http://localhost:8080`). Wired with `AddCors` / `UseCors` in
-`Program.cs`. Keep origins aligned with the Angular serve port.
+`http://localhost:8080`). Prod: exact origins via
+`Cors__AllowedOrigins__0` (no wildcards). Wired with `AddCors` /
+`UseCors` in `Program.cs`.
+
+**HTTPS** — `AppConfig:UseHttpsRedirection` (false on App Service
+behind HTTPS Only; do not disable App Service HTTPS Only).
 
 ---
 
@@ -105,6 +111,7 @@ Backend.Models     Shared domain models + Exceptions
 | `Backend.BLL` | Business logic | `Interfaces/`, `Services/`, BLL DI |
 | `Backend.DAL` | Persistence | `Interfaces/`, `Repositories/`, `AppDbContext`, DAL DI |
 | `Backend.Models` | Shared models | POCOs with properties only, `Exceptions/` |
+| `Backend.Tests` | Automated tests | xUnit + Moq unit tests (services) and integration tests (HTTP) |
 
 ### Dependency rules (do not break)
 
@@ -114,6 +121,7 @@ Allowed project references:
 - `BLL` → `DAL`, `Models`
 - `DAL` → `Models`
 - `Models` → nothing in this solution
+- `Tests` → `API`, `BLL`, `DAL`, `Models` (test project only)
 
 Forbidden:
 
@@ -123,6 +131,7 @@ Forbidden:
 - Putting business logic in Routes or DTOs
 - Accessing `AppDbContext` from API or Controllers (repositories only)
 - Skipping a layer (e.g. Controller calling a Repository directly)
+- Production code depending on `Backend.Tests`
 
 DI registration is **chained** so each layer pulls in the layer below it:
 
@@ -136,12 +145,87 @@ next layer’s `Add*()` method.
 
 ### Request flow
 
-1. **Route** (`Backend.API/Routes`) — exposes the HTTP endpoint, binds input, injects the controller
-2. **Controller** (`Backend.API/Controllers`) — maps DTO → service call, returns the result
-3. **Service** (`Backend.BLL/Services` via interface) — business rules; throws `AppException` subtypes for expected failures
-4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) — database access when needed (prefer returning `null` / empty over throwing business errors)
+1. **Route** (`Backend.API/Routes`) — exposes the HTTP endpoint, binds input
+   (validated DTO) + `CancellationToken`, injects the controller
+2. **Controller** (`Backend.API/Controllers`) — maps DTO → service call,
+   forwards the same `CancellationToken`
+3. **Service** (`Backend.BLL/Services` via interface) — business rules;
+   throws `AppException` subtypes for expected failures; forwards the token
+4. **Repository** (`Backend.DAL/Repositories` via `Backend.DAL/Interfaces`) —
+   database access with the token on EF async APIs (prefer returning
+   `null` / empty over throwing business errors)
 5. **Model** (`Backend.Models`) — shared shape of domain data
-6. **On error** — uncaught exceptions bubble to `GlobalExceptionHandler` (`IExceptionHandler`): `AppException` → matching HTTP status + ProblemDetails; anything else → 500
+6. **On error** — uncaught exceptions bubble to `GlobalExceptionHandler`
+   (`IExceptionHandler`): `AppException` → matching HTTP status +
+   ProblemDetails; anything else → 500
+
+---
+
+## CancellationToken (mandatory on async I/O)
+
+Propagate `CancellationToken` through the full stack on async work that
+touches I/O (DB, HTTP, long awaits):
+
+```
+Route → Controller → Service (interface + impl) → Repository (interface + impl)
+  → EF / HttpClient / other cancellable APIs
+```
+
+Rules:
+
+- Accept `CancellationToken cancellationToken` on the route handler,
+  controller method, service method, and repository method
+- Pass **the same** token down; do not create a new token per layer
+- Pass it into EF Core (`ToListAsync`, `FirstOrDefaultAsync`,
+  `SaveChangesAsync`, `AnyAsync`, `ExecuteDeleteAsync`, …) and other
+  cancellable APIs
+- `CancellationToken` is `System.Threading` (BCL), **not** ASP.NET.
+  Putting it on BLL/DAL signatures does **not** break layering. Do
+  **not** pass `HttpContext` / `IHttpContextAccessor` into BLL or DAL
+- Sync or trivially CPU-only helpers may omit it; every new async
+  feature path with I/O must include it
+- Background services use their own `stoppingToken` (see
+  `TokenCleanupBackgroundService`), not the HTTP request token
+
+Why: if the client disconnects, work should stop instead of keeping
+orphan DB/HTTP work alive.
+
+---
+
+## DTO validation with DataAnnotations (mandatory)
+
+**Do not skip this.** Many agents ship bare DTO properties with no
+attributes. In this project, request DTOs **must** validate input with
+DataAnnotations on the properties.
+
+Rules:
+
+- Put validation on **API DTOs** (`Backend.API/DTOs`), not by reinventing
+  the same checks only inside the service
+- Annotate every required / constrained field:
+  `[Required]`, `[MinLength]`, `[MaxLength]`, `[EmailAddress]`,
+  `[RegularExpression]`, `[Range]`, …
+- Set **`ErrorMessage` in French** on each attribute (frontend display)
+- Prefer `sealed` request/response DTOs when inheritance is unused
+- Keep `builder.Services.AddValidation();` in `Program.cs` (already
+  present) so Minimal APIs reject invalid bodies/queries with 400
+- Document invalid input on routes with `.ProducesValidationProblem()`
+- Business rules that need DB state (duplicate email, …) stay in the
+  BLL as `AppException` — annotations cover **shape / format** of the
+  request
+
+Example (see `AuthDTOs.cs` / `ExampleDTOs.cs`):
+
+```csharp
+public sealed class RegisterRequestDTO {
+    [Required(ErrorMessage = "L'email est requis !")]
+    [EmailAddress(ErrorMessage = "L'email n'est pas valide !")]
+    public string Email { get; set; } = string.Empty;
+}
+```
+
+GET query DTOs still need annotations **and** `[AsParameters]` on the
+route parameter (and `[FromQuery]` on properties when needed).
 
 ---
 
@@ -173,19 +257,28 @@ Models must not reference ASP.NET).
 ### Rules
 
 - **Throw from the BLL** (services) for expected business failures:
-  `throw new NotFoundException("Device not found.");`
+  `throw new NotFoundException("Appareil introuvable.");`
 - Prefer repositories that return `T?` / empty collections; let the
   service decide which `AppException` to throw
 - Do **not** `try/catch` in every controller/route just to map status
   codes — the global handler already does that
 - Do **not** throw bare `Exception` / `InvalidOperationException` for
   expected cases (those become 500)
-- Throw messages in **French** for expected failures, e.g.
+
+**`AppException` messages are user-facing (not like a 500):**
+
+- The handler puts the exception **message** (and title) into
+  ProblemDetails. The frontend often **displays that text** to the user
+- Write those strings carefully: clear, polite, **French**, safe to show
+- Do **not** put stack traces, SQL, internal ids, English debug notes,
+  or developer jargon in `AppException` messages
+- Prefer short product copy, e.g.
   `throw new NotFoundException("Appareil introuvable.");`
-- Keep client-visible messages safe (e.g. login:
-  `"Mot de passe invalide."`)
-- Unexpected bugs stay uncaught → handler logs + generic 500 ProblemDetails
-  in French (no stack trace to the client)
+  or login: `"Mot de passe invalide."`
+- Unexpected bugs stay uncaught → handler logs + a **generic** 500
+  ProblemDetails in French (no stack trace / no internal detail to the
+  client). Do not rely on 500 text to explain a business failure —
+  use the right `AppException` subtype instead
 
 ### Feature work
 
@@ -212,11 +305,31 @@ Reference: `AuthService.Login` → `UnauthorizedException`; handler in
 
 Feature naming: use one feature prefix everywhere (`Device`, `Home`, `User`, …). Mirror the `Example*` layout.
 
+**Extend an existing feature when the work is tightly related.** A new
+capability is not always a new feature prefix / new file set. If it
+belongs to the same domain aggregate, add methods, DTOs, routes, and
+models **inside** that feature instead of creating parallel
+`Invitation*` / `HomeInvite*` stacks.
+
+Example: a **home invitation code** is part of **Home** — extend
+`HomeService`, `HomeController`, `HomeRoutes`, `HomeDTOs`,
+`IHomeRepository`, models under Home, etc. Do **not** invent a full
+`Invitation` feature tree just to limit conceptual “newness”; the goal
+is fewer files and one clear owner.
+
+Create a **new** feature prefix only when the domain is clearly
+separate (e.g. `Device` vs `Home`, `Auth` vs `Scene`).
+
 ---
 
 ## How to add a feature
 
 Use the `Example*` feature as the template. Complete the steps that apply; skip persistence steps only when the feature has no database work.
+
+**Before step 1:** decide whether this is a **new** feature or an
+**extension** of an existing one (see Feature naming above). If it
+extends an existing feature, edit those files — do not copy the whole
+checklist into a new parallel file set.
 
 ### Checklist
 
@@ -232,18 +345,27 @@ Feature: <Name>
 [ ] 5. Register repository in Backend.DAL/DependencyInjection.cs
 [ ] 6. EF migration (if persistence)
 [ ] 7. Service interface in Backend.BLL/Interfaces
+       (async I/O methods take CancellationToken)
 [ ] 8. Service implementation in Backend.BLL/Services
-       (throw AppException subtypes for expected errors)
+       (throw AppException subtypes for expected errors;
+        forward CancellationToken)
 [ ] 9. Register service in Backend.BLL/DependencyInjection.cs
 [ ] 10. Request/response DTOs in Backend.API/DTOs
+        (DataAnnotations + French ErrorMessage on every constrained field)
 [ ] 11. Controller in Backend.API/Controllers
+        (forward CancellationToken to the service)
 [ ] 12. Register controller in Backend.API/DependencyInjection.cs
 [ ] 13. Routes in Backend.API/Routes + Map* in Program.cs
+        (bind CancellationToken; .ProducesValidationProblem on DTOs)
 [ ] 14. RequireAuthorization on private routes (User / Admin)
 [ ] 15. Expected errors covered (AppException / existing subtypes)
        + documented on routes with .Produces / .ProducesProblem
-[ ] 16. Build and smoke-test happy path + error paths
-       (Bearer token in Swagger when protected)
+[ ] 16. Unit tests for the new/changed service(s) in Backend.Tests
+       (Moq repos; assert intended behavior, not only “no throw”)
+[ ] 17. Integration tests for the new/changed HTTP routes when useful
+       (WebApplicationFactory; happy path + expected errors)
+[ ] 18. Build, run tests, and smoke-test happy path + error paths
+       (Bearer token in Swagger when protected; bad DTO → 400)
 ```
 
 ### Step details
@@ -260,18 +382,30 @@ Feature: <Name>
 - Interface: `I<Feature>Repository` in `Interfaces/` (same pattern as BLL)
 - Implementation: `<Feature>Repository` in `Repositories/`
 - Prefer `Task<T?>` / empty results over throwing business exceptions here
+- Async methods that hit EF must take `CancellationToken` and pass it to
+  EF APIs (`FirstOrDefaultAsync(..., cancellationToken)`, …)
+- **Query style (required):** compose with **EF Core fluent method
+  syntax** on `DbSet` (`Where` / `OrderBy` / `ThenBy` / `Select` /
+  `ToArrayAsync`, …). Project in the query; pass `cancellationToken`
+  on the terminal async call. Prefer this over raw SQL strings and
+  over LINQ query syntax (`from x in … select`). Do not load full
+  entities into memory then filter with LINQ-to-Objects when EF can
+  do it. See Coding style → Repository queries.
 - **Register the model in `AppDbContext` (`Database.cs`)** — required for EF to create the table and keep it in sync via migrations:
   - Add `public DbSet<YourModel> YourModels => Set<YourModel>();`
   - Declare relationships / constraints in `OnModelCreating` when needed
   - Without this step the model exists in code but is **not** persisted
 - Register: `services.AddScoped<I<Feature>Repository, <Feature>Repository>();`
 - Migration commands: see `commands.md`
-- Connection string comes from `DALConfig` in `appsettings*.json` (never hardcode secrets)
+- Connection string comes from `DALConfig:ConnectionString` (full
+  string including password). Dev: `appsettings.Development.json`.
+  Prod: secret `DALConfig__ConnectionString` — see `commands.md`
 
 #### 7–9. Business logic — `Backend.BLL`
 
 - Interface: `I<Feature>Service` in `Interfaces/`
 - Implementation: `<Feature>Service` in `Services/`, depends on repository interfaces (not concrete types)
+- Async I/O methods take `CancellationToken` and forward it to the repo
 - Register: `services.AddScoped<I<Feature>Service, <Feature>Service>();`
 - For each expected failure, `throw` an `AppException` subtype
   (`NotFoundException`, `ConflictException`, `UnauthorizedException`, …).
@@ -280,17 +414,21 @@ Feature: <Name>
 
 #### 10–13. HTTP edge — `Backend.API`
 
-**DTOs** (`DTOs/<Feature>DTOs.cs`):
+**DTOs** (`DTOs/<Feature>DTOs.cs`) — **required, do not omit:**
 
-- Validate input with DataAnnotations (`[Required]`, `[MinLength]`, …)
-- Prefer dedicated request/response DTOs; do not expose internal wiring through the API contract when a response DTO is clearer
-- Enable validation in the app with `builder.Services.AddValidation();` when using DataAnnotations on Minimal APIs
+- Validate **every** constrained input field with DataAnnotations
+  (`[Required]`, `[MinLength]`, `[EmailAddress]`, …)
+- Always set **French** `ErrorMessage` on those attributes
+- Prefer dedicated `sealed` request/response DTOs; do not expose
+  internal wiring through the API contract when a response DTO is clearer
+- Do not leave a request DTO as a bare property bag with no annotations
+- `builder.Services.AddValidation();` is already in `Program.cs`
 
 **Controller** (`Controllers/<Feature>Controller.cs`):
 
 - Inject `I<Feature>Service` (interface, not concrete class)
-- Accept DTOs, call the service, return the result
-- No direct database access
+- Accept DTOs + `CancellationToken`, call the service, return the result
+- Forward the token to the service; no direct database access
 
 **DI** (`DependencyInjection.cs`):
 
@@ -301,6 +439,8 @@ Feature: <Name>
 - Static class with `Map<Feature>Routes(this IEndpointRouteBuilder …)`
 - Use `MapGroup("/<feature>")` with a **REST** resource name (noun, usually plural)
 - Inject the controller from DI; keep handlers thin
+- Bind `CancellationToken cancellationToken` on async handlers and
+  pass it to the controller
 - Call `app.Map<Feature>Routes();` from `Program.cs`
 - Protect private endpoints with `.RequireAuthorization("User")` or
   `"Admin"` (JWT Bearer — see Authentication section above)
@@ -334,6 +474,9 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
 
 ### What not to do when adding a feature
 
+- Do not create a full new feature file set when the capability is
+  deeply tied to an existing feature (e.g. home invitation code →
+  extend `Home*`, do not add `Invitation*` everywhere)
 - Do not put service or repository logic inside route lambdas
 - Do not register concrete services where an interface already exists (`IExampleService` pattern)
 - Do not add a new project or flatten layers without an explicit architectural decision
@@ -344,8 +487,19 @@ fine when ownership is clear (`/homes/{homeId}/rooms`). The `Example` route
 - Do not leave private routes open; add `.RequireAuthorization(...)`
 - Do not add an external JWT introspection / verification server; validation
   stays local in the API
+- Do not ship request DTOs **without** DataAnnotations + French
+  `ErrorMessage` (shape/format checks belong on the DTO)
+- Do not stop `CancellationToken` at the route/controller: forward it to
+  service → repository → EF / HTTP
+- Do not inject `HttpContext` into BLL/DAL “instead of” a token
+- Do not write repository access as raw SQL or LINQ query syntax when
+  a fluent EF chain (`Where` / `OrderBy` / `Select` / `To*Async`) works
+- Do not leave non-obvious features/methods uncommented — match the
+  `Example*` file-header / intent comment style (English)
 - Do not throw bare `Exception` for expected business failures (use
   `AppException` subtypes so clients get the right status, not 500)
+- Do not put unsafe / internal / English debug text in `AppException`
+  messages — they are often shown to the user (unlike a generic 500)
 - Do not catch exceptions in every controller just to write HTTP status
   codes — rely on `GlobalExceptionHandler`
 - Do not reintroduce `UseDeveloperExceptionPage` for this API unless you
@@ -392,17 +546,28 @@ The section name in JSON must match `BindConfiguration("…")`
 
 | File | Purpose |
 | --- | --- |
-| `appsettings.json` | Default / shared fallback |
-| `appsettings.Development.json` | Local PostgreSQL (dev Docker DB) |
-| `appsettings.Production.json` | Fake production example |
+| `appsettings.json` | No production connection string (secrets only) |
+| `appsettings.Development.json` | Full local Docker Postgres string (incl. password) |
+| `appsettings.Production.json` | Cloud defaults (`UseHttpsRedirection: false`, empty CORS) |
 
 Section shape:
 
 ```json
 "DALConfig": {
-  "ConnectionString": "Host=…;Port=4040;Database=…;Username=…;Password=…"
+  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…;Ssl Mode=Require;Trust Server Certificate=false"
 }
 ```
+
+Prefer a **dedicated** DB user in cloud. The value is the **full**
+Npgsql string (password included) — no placeholder.
+
+| Environment | Where values come from |
+| --- | --- |
+| Development | `appsettings.Development.json` (+ JWT via user-secrets) |
+| Production **secrets** | `DALConfig__ConnectionString`, `JwtConfig__Key` |
+| Production **plain config** | `ASPNETCORE_ENVIRONMENT=Production`, `AppConfig__UseHttpsRedirection`, `Cors__AllowedOrigins__0` |
+
+Details: `commands.md` (Cloud / production configuration).
 
 ### JWT settings (`JwtConfig`)
 
@@ -414,8 +579,23 @@ Section shape:
 }
 ```
 
-`Key` (Base64 signing key) must come from user-secrets or environment
-variables — not from tracked appsettings. See `commands.md`.
+`Key` (Base64, ≥ 32 random bytes) must come from user-secrets or
+cloud secret `JwtConfig__Key` — not from tracked appsettings.
+Production key must be distinct from local. See `commands.md` /
+`genkey.ps1`.
+
+### App host settings (`AppConfig`)
+
+```json
+"AppConfig": {
+  "UseHttpsRedirection": false
+}
+```
+
+- Development / local `http` profile: `false` (see
+  `appsettings.Development.json`)
+- Production / App Service: `false` — keep **HTTPS Only** enabled on
+  the platform; TLS ends at the proxy
 
 ### Dev database (Docker)
 
@@ -424,7 +604,8 @@ password is tracked in git). Build/run commands: see `commands.md`.
 
 Default settings: host `localhost`, port `4040`, database `alfred_db`
 (user/password in the Dockerfile). Keep
-`appsettings.Development.json` aligned with those values.
+`appsettings.Development.json` aligned with those values
+(full `ConnectionString`).
 
 ---
 
@@ -434,7 +615,7 @@ Each layer owns its registrations and chains the layer below:
 
 | File | Calls next | Registers |
 | --- | --- | --- |
-| `Backend.API/DependencyInjection.cs` | `AddBLL()` | controllers, exception handler, `TokenCleanupBackgroundService` |
+| `Backend.API/DependencyInjection.cs` | `AddBLL()` | `AppConfig`, controllers, exception handler, `TokenCleanupBackgroundService` |
 | `Backend.BLL/DependencyInjection.cs` | `AddDAL()` | services (`I*Service` → `*Service`) |
 | `Backend.DAL/DependencyInjection.cs` | — | `AppDbContext`, repositories |
 
@@ -451,6 +632,10 @@ Inside the layers:
 ```csharp
 // AddAPI
 services.AddBLL();
+services.AddOptions<AppConfig>()
+    .BindConfiguration("AppConfig")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 services.AddScoped<ExampleController>();
 
 // AddBLL
@@ -473,32 +658,131 @@ services.AddDbContext<AppDbContext>(...);
 - Prefer primary constructors for Controllers/Services when dependencies are simple
 - Prefer interfaces for BLL and DAL collaborators (testability / mocking)
 - Prefer `sealed` on DTOs when inheritance is not needed
+- Annotate request DTO fields with DataAnnotations + French `ErrorMessage`
+- Propagate `CancellationToken` on async I/O (route → … → repository)
 - Keep routes as extension methods on `IEndpointRouteBuilder`
 - Match existing file headers and section comments style when editing nearby code
 - Keep user-facing validation / error messages in **French**;
   everything else in English
+- Treat `AppException` messages as **UI copy** (user may see them);
+  reserve internal detail for logs / real 500s only
+
+### Comments (when intent is not obvious)
+
+Comment features and non-obvious functions in **English**, in the same
+spirit as the `Example*` files (file-level `/** … */` that explain
+**why** / role of the piece, not a line-by-line rewrite of the code).
+
+- Add a short file header on new feature files (Routes, DTOs, Services,
+  Repositories, …) when the purpose is not obvious from the name alone
+- Comment methods / blocks when the rule, edge case, or design choice
+  is non-obvious
+- Do **not** comment the trivial (`// increment i`, getters, obvious
+  DI wiring)
+- Prefer the existing section markers (`// Imports`, `// Class`, …)
+  when editing nearby code
+
+Reference tone: `ExampleRoutes.cs`, `ExampleDTOs.cs`,
+`ExampleService.cs`.
+
+### Repository queries (EF Core fluent style)
+
+In repositories, write queries as **fluent method chains** on
+`DbSet` / `IQueryable`. Keep filtering, ordering, and projection in
+the database query; finish with an async materializer and the
+`CancellationToken`.
+
+**Prefer:**
+
+```csharp
+await db.HomeMemberships
+    .Where(m => m.HomeId == homeId && homesForUser.Contains(m.HomeId))
+    .OrderBy(m => m.User.Username)
+    .ThenBy(m => m.User.Id)
+    .Select(m => new HomeMember(m.User.Username, m.Role))
+    .ToArrayAsync(cancellationToken);
+```
+
+**Avoid:**
+
+- Raw SQL (`FromSqlRaw`, `ExecuteSqlRaw`, hand-written SQL strings)
+  unless there is a clear, documented reason
+- LINQ **query syntax** (`from m in db.HomeMemberships where … select`)
+- Loading a full list then filtering/sorting in memory when EF can
+  express it (`ToList()` then `.Where(...)` on the client)
+
+---
+
+
+## Testing (`Backend.Tests`)
+
+Automated tests live in **`Backend.Tests`** (xUnit + Moq).
+
+| Kind | What | How |
+| --- | --- | --- |
+| **Unit** | BLL **services only** | New service + Moq for `I*Repository` / other deps; no real DB |
+| **Integration** | HTTP stack | `WebApplicationFactory` + SQLite stand-in; hit `/api/...` |
+
+### Rules
+
+- **Unit tests target services** (business rules). Do not unit-test
+  controllers/routes/repositories as the default — prefer service
+  unit tests + a few HTTP integration tests
+- Assert **what the code is supposed to do** (status, French
+  `AppException` message, JWT claims, side effects on mocks), not
+  only that a method returns without throwing
+- Match existing file style: English `/** … */` header, `// Imports`
+  / `// Class` / `// Methods` sections (see `AuthServiceTests`)
+- Integration host: `AlfredWebApplicationFactory` (JWT key via
+  `UseSetting`, EF provider swapped to SQLite). Keep integration
+  tests in the `"Integration"` collection (no parallel factories)
+- `Program.Partial.cs` exposes `Program` for `WebApplicationFactory`
+- After logout, a still-signed JWT is rejected by `ActiveJti` →
+  **403 Forbidden** (not 401). Assert that when testing revocation
+
+### Layout
+
+```
+Backend.Tests/
+  Unit/Services/          ← AuthServiceTests, ExampleServiceTests, …
+  Integration/            ← AlfredWebApplicationFactory, *IntegrationTests
+```
+
+When adding a feature: add service unit tests; add/adjust integration
+tests for the main happy path and expected HTTP errors when the
+feature exposes routes.
+
+Commands: see `commands.md` (Testing).
 
 ---
 
 ## Commands
 
 See `commands.md` for Docker (dev DB), restore, build, run, watch,
-and EF migrations.
+EF migrations, and tests.
 
 Minimum verification after a feature:
 
 ```bash
 # start the dev database first (see commands.md)
 dotnet build
-dotnet run --project backend.api
+dotnet test
+dotnet run --project Backend.API
 ```
 
 ---
 
 ## When unsure
 
-1. Copy the structure of the closest `Example*` files
+1. Copy the structure of the closest `Example*` / `Auth*` files
 2. Respect the dependency table above
 3. Prefer a thin route + controller + interface service over shortcuts
-4. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
+4. Always add DataAnnotations on new request DTOs and forward
+   `CancellationToken` on async I/O
+5. Comment non-obvious features/methods (English, `Example*` style);
+   use fluent EF queries in repositories
+6. Prefer extending a related existing feature over a new file tree
+7. Add service unit tests (and integration tests for HTTP) in
+   `Backend.Tests` — assert intended behavior
+8. Ask before introducing a new architectural pattern (MediatR, vertical slices, etc.)
 

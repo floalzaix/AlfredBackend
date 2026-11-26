@@ -19,6 +19,8 @@ using System.ComponentModel.DataAnnotations;
 //
 
 public class DALConfig {
-    [Required(ErrorMessage = "ConnectionString is required in appsettings.json")]
-    public string? ConnectionString { get; set; }
+    // Full Npgsql string including password.
+    // Dev: appsettings.Development.json. Prod: secret / env only.
+    [Required(ErrorMessage = "ConnectionString is required in DALConfig")]
+    public string ConnectionString { get; set; } = string.Empty;
 }

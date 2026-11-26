@@ -36,17 +36,20 @@ You do **not** need to invent a new architecture. Follow the layers below.
 Browser / frontend
         │
         ▼
-1. Route          (URL + HTTP method)     Backend.API/Routes
+1. Route          (URL + HTTP method + CancellationToken)
+                                          Backend.API/Routes
         │
         ▼
-2. Controller     (glue: DTO → service)   Backend.API/Controllers
+2. Controller     (glue: DTO → service, forward token)
+                                          Backend.API/Controllers
         │
         ▼
-3. Service        (business rules)        Backend.BLL/Services
+3. Service        (business rules + forward token)
+                                          Backend.BLL/Services
         │                                 (throw AppException on expected failures)
         ▼
-4. Repository     (talk to the database)  Backend.DAL/Interfaces + Repositories   ← only if you save data
-        │
+4. Repository     (DB + pass token to EF) Backend.DAL/Interfaces + Repositories
+        │                                 ← only if you save data
         ▼
 5. Model          (shape of the data)     Backend.Models
 
@@ -59,18 +62,20 @@ On error (any layer, uncaught):
 
 Rule of thumb:
 
-- **Route** = “where is the door?”
-- **DTO** = “what data is allowed to enter?”
-- **Controller** = “who do I call next?”
-- **Service** = “what is the real work?” (+ expected error cases)
-- **Repository** = “how do I read/write the database?”
+- **Route** = “where is the door?” (+ request `CancellationToken`)
+- **DTO** = “what data is allowed to enter?” (**DataAnnotations**, French messages)
+- **Controller** = “who do I call next?” (forward the token)
+- **Service** = “what is the real work?” (+ expected error cases + token)
+- **Repository** = “how do I read/write the database?” (token → EF)
 - **Model** = “what does this data look like inside the app?”
 - **AppException** = “this failure is expected; map it to a proper HTTP status”
 - **GlobalExceptionHandler** = “turn uncaught exceptions into ProblemDetails”
+- **CancellationToken** = “stop work if the client disconnects” (BCL type;
+  safe in BLL/DAL — not an ASP.NET leak)
 
 ---
 
-## Choose a feature name
+## Choose a feature name (or extend an existing one)
 
 Pick **one** PascalCase name and reuse it everywhere.
 
@@ -79,25 +84,55 @@ Examples: `Device`, `Home`, `User`, `Scene`
 In this guide we use **`Device`**.  
 Replace `Device` with your own name in every file.
 
+### New capability ≠ always new files
+
+If what you are building is **tightly linked** to a feature that
+already exists, **extend that feature** instead of creating a parallel
+set of files (Models / Repo / Service / DTOs / Controller / Routes).
+
+Goal: keep the number of feature files under control and keep one clear
+owner for related behavior.
+
+| Situation | What to do |
+| --- | --- |
+| Home invitation codes, members, join/leave home | Extend **`Home*`** (same service, routes, DTOs, repo, …) |
+| Device sensors under an existing Device feature | Extend **`Device*`** |
+| Clearly separate domain (e.g. Scenes vs Homes) | Create a **new** feature prefix and file set |
+
+Example: an invitation code for a household is a **new capability**, but
+it still belongs to **Home** — add methods and routes there; do **not**
+spin up `InvitationService`, `InvitationController`,
+`InvitationRoutes`, etc.
+
+Only start the full checklist below as a **new** feature when no
+existing prefix owns that domain.
+
 ---
 
 ## Checklist
 
 ```
 [ ] Step 1  — Model
-[ ] Step 2  — Repository (+ database)   [skip if no DB yet]
-[ ] Step 3  — Service interface
-[ ] Step 4  — Service implementation (+ AppException for expected errors)
+[ ] Step 2  — Repository (+ database + CancellationToken on async I/O)
+              [skip if no DB yet]
+[ ] Step 3  — Service interface (CancellationToken on async I/O)
+[ ] Step 4  — Service implementation (+ AppException for expected errors;
+              forward CancellationToken)
 [ ] Step 5  — Register the service (BLL DI)
-[ ] Step 6  — DTOs
-[ ] Step 7  — Controller
+[ ] Step 6  — DTOs with DataAnnotations + French ErrorMessage (mandatory)
+[ ] Step 7  — Controller (forward CancellationToken)
 [ ] Step 8  — Register the controller (API DI)
-[ ] Step 9  — Routes (+ RequireAuthorization when private)
+[ ] Step 9  — Routes (+ CancellationToken + RequireAuthorization when private
+              + .ProducesValidationProblem)
 [ ] Step 10 — Map the routes in Program.cs
 [ ] Step 11 — Review expected error paths + document them in Swagger
               (.Produces / .ProducesProblem on routes)
-[ ] Step 12 — Build and test happy path + error paths
-              (Bearer JWT in Swagger if protected)
+[ ] Step 12 — Unit tests for the service(s) in Backend.Tests
+              (xUnit + Moq; assert intended behavior)
+[ ] Step 13 — Integration tests for the HTTP routes when useful
+              (WebApplicationFactory; happy path + expected errors)
+[ ] Step 14 — Build, `dotnet test`, and smoke-test happy path + errors
+              (Bearer JWT in Swagger if protected; bad DTO → 400)
 ```
 
 Work **from the bottom of the stack upward** (model → … → route).
@@ -156,11 +191,12 @@ public DbSet<Device> Devices => Set<Device>();
 Add relationships in `OnModelCreating` only when you need them
 (see the commented example already in that file).
 
-Connection strings live under `DALConfig` in
-`appsettings.Development.json` (dev Docker DB on port `4040`) and
-`appsettings.Production.json` (fake prod example). Do not hardcode them.
-Start the DB with `Backend.DAL/Dockerfile` before running migrations
-(see `commands.md`).
+Connection string lives under `DALConfig:ConnectionString` as the
+**full** Npgsql string (password included). Dev:
+`appsettings.Development.json`. Prod: secret
+`DALConfig__ConnectionString` (TLS, dedicated user). Do not commit
+production secrets. Cloud checklist: `commands.md`. Start the DB with
+`Backend.DAL/Dockerfile` before running migrations.
 
 ### 2.2 Repository interface
 
@@ -175,8 +211,11 @@ using Backend.Models;
 namespace Backend.DAL.Interfaces;
 
 public interface IDeviceRepository {
-    Task<Device?> GetByIdAsync(Guid id);
-    Task AddAsync(Device device);
+    Task<Device?> GetByNameAsync(
+        string name,
+        CancellationToken cancellationToken
+    );
+    Task AddAsync(Device device, CancellationToken cancellationToken);
 }
 ```
 
@@ -184,14 +223,41 @@ Prefer returning `Device?` (or empty lists) when nothing is found.
 Let the **service** decide whether that is a `NotFoundException` or
 another business rule.
 
+Pass `cancellationToken` into EF (`FirstOrDefaultAsync`,
+`SaveChangesAsync`, …). `CancellationToken` is from `System.Threading`
+(the .NET BCL), not ASP.NET — it does **not** break layering.
+
 ### 2.3 Repository implementation
 
 **File to create:** `Backend.DAL/Repositories/DeviceRepository.cs`
 
-**Role:** real SQL/EF code. Only this layer talks to `AppDbContext`.
+**Role:** EF Core access only. Only this layer talks to `AppDbContext`.
 
 The class should implement `IDeviceRepository` and receive `AppDbContext`
-through its constructor (DI will provide it).
+through its constructor (DI will provide it). Forward
+`cancellationToken` to every cancellable EF call.
+
+**Query style:** use **fluent method chains** on `DbSet` (modern EF
+style). Filter / order / project in the query, then materialize with
+`ToArrayAsync` / `FirstOrDefaultAsync` / … and the token.
+
+```csharp
+await db.HomeMemberships
+    .Where(m => m.HomeId == homeId && homesForUser.Contains(m.HomeId))
+    .OrderBy(m => m.User.Username)
+    .ThenBy(m => m.User.Id)
+    .Select(m => new HomeMember(m.User.Username, m.Role))
+    .ToArrayAsync(cancellationToken);
+```
+
+Prefer that over:
+
+- raw SQL strings (`FromSqlRaw`, …)
+- LINQ query syntax (`from m in db.… where … select …`)
+- loading everything then filtering in memory
+
+Add a short English file header (like `Example*`) when the repository’s
+role is not obvious from the name alone.
 
 ### 2.4 Register the repository
 
@@ -232,7 +298,10 @@ using Backend.Models;
 namespace Backend.BLL.Interfaces;
 
 public interface IDeviceService {
-    Device GetDevice(string name);
+    Task<Device> GetDeviceAsync(
+        string name,
+        CancellationToken cancellationToken
+    );
 }
 ```
 
@@ -240,6 +309,7 @@ Why an interface?
 
 - The controller depends on `IDeviceService`, not on the concrete class
 - Later you can mock it in tests without touching the database
+- Async I/O methods take `CancellationToken` and forward it downward
 
 ---
 
@@ -262,8 +332,14 @@ namespace Backend.BLL.Services;
 public class DeviceService(
     IDeviceRepository _deviceRepository
 ) : IDeviceService {
-    public async Task<Device> GetDeviceAsync(Guid id) {
-        Device? device = await _deviceRepository.GetByIdAsync(id);
+    public async Task<Device> GetDeviceAsync(
+        string name,
+        CancellationToken cancellationToken
+    ) {
+        Device? device = await _deviceRepository.GetByNameAsync(
+            name,
+            cancellationToken
+        );
 
         if (device is null) {
             throw new NotFoundException("Appareil introuvable.");
@@ -275,12 +351,20 @@ public class DeviceService(
 ```
 
 If you have a repository, inject it in the constructor (as above) and
-call it from your methods.
+call it from your methods. Always forward `cancellationToken`.
 
 **Expected errors:** list what can go wrong for the user (not found,
 duplicate name, bad credentials, …). For each case, throw an
 `AppException` subtype from `Backend.Models.Exceptions` with a
-**French** message (shown in the frontend):
+**French** message.
+
+**Important:** `AppException` messages are **shown to the user** (via
+ProblemDetails / the frontend). They are **not** like a 500, where the
+client only gets a generic message. Write them as careful UI copy:
+
+- Clear, polite, short, in **French**
+- No stack traces, SQL, internal ids, or English debug notes
+- Safe even if displayed in a toast / dialog
 
 | Exception | HTTP status | Example message |
 | --- | --- | --- |
@@ -297,7 +381,8 @@ Rules:
 - Do **not** read HTTP details here (no DTOs from the API project)
 - Do **not** use `AppDbContext` directly here (use the repository)
 - Do **not** throw bare `new Exception("…")` for expected cases
-  (that becomes a 500)
+  (that becomes a 500 with a generic client message — wrong for
+  expected business failures)
 
 ---
 
@@ -316,13 +401,17 @@ If you forget this line, the app may compile but crash at runtime with
 
 ---
 
-## Step 6 — DTOs
+## Step 6 — DTOs (DataAnnotations are mandatory)
 
 **File to create:** `Backend.API/DTOs/DeviceDTOs.cs`
 
 **Role:** validate and shape data that enters (or leaves) the HTTP API.
 
-Look at: `Backend.API/DTOs/ExampleDTOs.cs`
+Look at: `Backend.API/DTOs/ExampleDTOs.cs` and `AuthDTOs.cs`.
+
+**Do not ship a request DTO as a bare property bag.** Many AI-generated
+DTOs skip annotations — that is wrong in this project. Every constrained
+field needs DataAnnotations, with **French** `ErrorMessage`.
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -336,14 +425,23 @@ public sealed class GetDeviceDTO {
     [MinLength(1, ErrorMessage = "Le nom ne doit pas être vide.")]
     public string Name { get; init; } = string.Empty;
 }
+
+public sealed class CreateDeviceDTO {
+    [Required(ErrorMessage = "Le nom est requis.")]
+    [MinLength(2, ErrorMessage = "Le nom doit contenir au moins 2 caractères.")]
+    public string Name { get; set; } = string.Empty;
+}
 ```
 
 Notes:
 
 - A **DTO** is not your database model. It is the “form” of the request/response
-- Attributes like `[Required]` describe validation rules
-- For Minimal APIs, also enable `builder.Services.AddValidation();` in `Program.cs`
-  if you want those attributes to reject bad requests automatically
+- Use `[Required]`, `[MinLength]`, `[EmailAddress]`, `[RegularExpression]`, …
+- `ErrorMessage` values shown to the user stay in **French**
+- Shape/format checks → DTO annotations; DB business rules → BLL
+  `AppException`
+- `builder.Services.AddValidation();` is already in `Program.cs`
+- Routes that bind a validated DTO need `.ProducesValidationProblem()`
 
 ---
 
@@ -365,22 +463,26 @@ namespace Backend.API.Controllers;
 public class DeviceController(
     IDeviceService _deviceService
 ) {
-    public Device GetDevice(GetDeviceDTO dto) {
-        return _deviceService.GetDevice(dto.Name);
+    public Task<Device> GetDeviceAsync(
+        GetDeviceDTO dto,
+        CancellationToken cancellationToken
+    ) {
+        return _deviceService.GetDeviceAsync(dto.Name, cancellationToken);
     }
 }
 ```
 
 What this file should do:
 
-- Take a validated DTO
-- Call one (or a few) service methods
+- Take a validated DTO and the request `CancellationToken`
+- Call one (or a few) service methods (forward the token)
 - Return the result
 
 What it should **not** do:
 
 - Contain heavy business rules
 - Talk to the database / `AppDbContext`
+- Swallow the token (always pass it down)
 
 ---
 
@@ -434,11 +536,12 @@ public static class DeviceRoutes {
     public static void MapDeviceRoutes(this IEndpointRouteBuilder mainRouter) {
         var deviceRouter = mainRouter.MapGroup("/devices");
 
-        deviceRouter.MapGet("/", (
+        deviceRouter.MapGet("/", async (
             DeviceController controller,
-            [AsParameters] GetDeviceDTO dto
+            [AsParameters] GetDeviceDTO dto,
+            CancellationToken cancellationToken
         ) => {
-            return controller.GetDevice(dto);
+            return await controller.GetDeviceAsync(dto, cancellationToken);
         })
         .RequireAuthorization("User")
         .Produces<Device>(StatusCodes.Status200OK)
@@ -449,6 +552,9 @@ public static class DeviceRoutes {
     }
 }
 ```
+
+Bind `CancellationToken cancellationToken` on the handler and pass it
+to the controller (ASP.NET supplies the request-abort token).
 
 Document each **expected** status in Swagger with `.Produces` /
 `.ProducesValidationProblem` (invalid DTO → 400) /
@@ -530,11 +636,60 @@ subtypes fit.
 
 ---
 
-## Step 12 — Build and test
+## Step 12 — Unit tests for the service
+
+**Folder:** `Backend.Tests/Unit/Services/`
+
+**Role:** lock the **business rules** of your service without HTTP or
+PostgreSQL. Mock repository interfaces with **Moq**.
+
+Look at: `Backend.Tests/Unit/Services/AuthServiceTests.cs`
+
+What to assert (examples):
+
+- Happy path returns the expected data / calls the repo the right way
+- Missing resource → `NotFoundException` with the French message
+- Duplicate → `ConflictException`
+- Bad credentials → `UnauthorizedException` (same message whether
+  the email exists or not, for Auth)
+
+Do **not** only check that the method “does not throw”. Check the
+contract the frontend / other layers rely on.
+
+```bash
+dotnet test --filter "FullyQualifiedName~Unit"
+```
+
+---
+
+## Step 13 — Integration tests for the routes
+
+**Folder:** `Backend.Tests/Integration/`
+
+**Role:** call the real API in-process (`WebApplicationFactory`) with
+SQLite instead of Docker Postgres. Good for register/login flows,
+validation `400`, auth `401`/`403`, and ProblemDetails bodies.
+
+Look at: `AuthIntegrationTests.cs`, `ExampleIntegrationTests.cs`,
+`AlfredWebApplicationFactory.cs`.
+
+Keep new integration tests in the `"Integration"` collection
+(`[Collection("Integration")]`) so they share one host.
+
+```bash
+dotnet test --filter "FullyQualifiedName~Integration"
+```
+
+Note: after logout, a still-signed JWT fails `ActiveJti` → **403**.
+
+---
+
+## Step 14 — Build, automated tests, and smoke-test
 
 ```bash
 dotnet build
-dotnet run --project backend.api
+dotnet test
+dotnet run --project Backend.API
 ```
 
 API listens on `http://localhost:5050` with path base `/api`.
@@ -554,7 +709,9 @@ If something fails, check these common mistakes first:
 | `Unable to resolve service for type '…'` | Missing line in a `DependencyInjection.cs` |
 | `Body was inferred but the method does not allow…` | Missing `[AsParameters]` on a GET DTO |
 | Project / namespace errors | Wrong folder or forgotten `using` |
-| Validation never rejects bad input | `AddValidation()` missing in `Program.cs` (already present in this project) |
+| Validation never rejects bad input | Missing DataAnnotations on the DTO, or `AddValidation()` missing in `Program.cs` (already present in this project) |
+| Bad body still reaches the service | DTO has no `[Required]` / constraints — add annotations + French `ErrorMessage` |
+| Client abort still runs DB work | `CancellationToken` not forwarded route → … → EF |
 | `401 Unauthorized` | Missing / expired Bearer token, or route not authorized |
 | `403 Forbidden` | Valid token but wrong role for the policy |
 | Expected business error returns `500` | Threw bare `Exception` instead of an `AppException` subtype |
@@ -588,6 +745,10 @@ Backend.API/
   GlobalExceptionHandler.cs           (shared — reuse, rarely edit)
   DependencyInjection.cs              (edit)
   Program.cs                          (edit: MapDeviceRoutes)
+
+Backend.Tests/
+  Unit/Services/DeviceServiceTests.cs
+  Integration/DeviceIntegrationTests.cs   (when you expose HTTP)
 ```
 
 ---
@@ -616,18 +777,54 @@ The JSON section name must match the string passed to `BindConfiguration`.
 
 ---
 
+## Comments (when things are not obvious)
+
+Mirror the `Example*` style: a short English `/** … */` file header that
+explains the **role / why** of the file, and comments on methods or
+blocks when the intent is not obvious.
+
+Do:
+
+- Comment new feature files (Routes, DTOs, Services, Repositories, …)
+  when a reader would not guess the purpose from the name alone
+- Comment non-obvious rules, edge cases, or design choices on functions
+- Keep comments in **English**
+
+Do not:
+
+- Comment every trivial line
+- Paste French into code comments (only user-facing error messages are French)
+
+Reference: `ExampleRoutes.cs`, `ExampleDTOs.cs`, `ExampleService.cs`.
+More detail: `AGENTS.md` (Coding style → Comments).
+
+---
+
 ## Golden rules (short)
 
 1. Copy `Example*`, then rename carefully
 2. One feature name, reused in every layer
-3. Never skip layers (Controller must not call the repository directly)
-4. Always register new services/controllers/repositories in DI
-5. Persist models by declaring them on `AppDbContext` in `Database.cs`
-6. Keep route names REST (resource nouns + HTTP verbs)
-7. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
-8. Throw `AppException` subtypes for expected errors (not bare `Exception`)
-9. Keep each file focused on its job
-10. Write code and comments in **English**; user-facing errors in **French**
+3. If the capability is tightly related to an existing feature,
+   **extend that feature** — do not create a parallel file set
+   (e.g. home invite → `Home*`, not `Invitation*`)
+4. Never skip layers (Controller must not call the repository directly)
+5. Always register new services/controllers/repositories in DI
+6. Persist models by declaring them on `AppDbContext` in `Database.cs`
+7. Keep route names REST (resource nouns + HTTP verbs)
+8. Protect private routes with `.RequireAuthorization(...)` (Bearer JWT)
+9. Throw `AppException` subtypes for expected errors (not bare `Exception`);
+   their messages are **user-facing** — write careful French UI copy
+10. **Validate request DTOs** with DataAnnotations + French `ErrorMessage`
+11. **Propagate `CancellationToken`** route → controller → service → repo → EF
+12. **Comment** non-obvious features/functions (English, `Example*` style)
+13. In repositories, use **fluent EF** (`Where` / `OrderBy` / `Select` /
+    `To*Async`) — not raw SQL or LINQ query syntax
+14. Keep each file focused on its job
+15. Write code and comments in **English**; user-facing errors in **French**
+16. Add **service unit tests** (and useful HTTP integration tests) in
+    `Backend.Tests` — assert intended behavior, not only “no crash”
 
 If you are stuck, open the matching `Example*` / `Auth*` file for that
 layer and mirror it line by line with your feature name.
+More detail: `AGENTS.md` (feature ownership, CancellationToken, DTO
+validation, comments, repository queries, testing).

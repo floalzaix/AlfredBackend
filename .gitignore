@@ -288,3 +288,6 @@ storybook-static/
 # Docs générés
 docs/_site/
 site/
+
+# Local file
+server.info.md

@@ -64,19 +64,35 @@ API and periodically deletes expired `UserToken` rows (every 5 minutes).
 Protect a route with `.RequireAuthorization("User")` or
 `.RequireAuthorization("Admin")`. JWT settings live under `JwtConfig`
 in `appsettings*.json`; the signing `Key` comes from user-secrets /
-environment variables. More detail: `Documentation/DAT.md` §9.
+`JwtConfig__Key` (≥ 32 bytes Base64; prod key ≠ local). Cloud env
+checklist: `Documentation/commands.md`.
 
 ### CORS
 
 Policy `Frontend` reads `Cors:AllowedOrigins`. Development allows
 `http://localhost:8080` so the Angular app can call the API
-cross-origin. Keep that list in sync with the SPA port.
+cross-origin. Production: set exact origins with
+`Cors__AllowedOrigins__0` (no wildcards).
+
+### HTTPS
+
+`AppConfig:UseHttpsRedirection` — `false` on Azure App Service when
+HTTPS Only terminates TLS at the proxy (do not disable HTTPS Only).
 
 ### Errors
 
 Expected failures use `AppException` subtypes → ProblemDetails via
 `GlobalExceptionHandler`. **User-facing** validation and error
 messages are in **French**; code and docs stay in English.
+
+### Input validation and cancellation
+
+- Request DTOs use **DataAnnotations** with French `ErrorMessage`
+  (`AddValidation()` in `Program.cs`) — see `AuthDTOs.cs`
+- Async I/O propagates **`CancellationToken`** from the route through
+  controller → service → repository → EF
+
+Details: `Documentation/AGENTS.md`.
 
 ### Naming convention
 
@@ -117,10 +133,23 @@ Persisted entities today: `User`, `UserToken` (EF migrations in
 ```bash
 dotnet restore
 dotnet build
-dotnet run --project backend.api
+dotnet run --project Backend.API
 ```
 
 Swagger (Development): open the app on port `5050` under `/api`.
+
+### Tests
+
+`Backend.Tests` — xUnit + Moq. Unit tests cover **services**;
+integration tests hit the HTTP API in-process (SQLite, no Docker).
+
+```bash
+dotnet test
+dotnet test --filter "FullyQualifiedName~Unit"
+dotnet test --filter "FullyQualifiedName~Integration"
+```
+
+Details: `Documentation/AGENTS.md` (Testing) and `commands.md`.
 
 ---
 
@@ -138,6 +167,6 @@ Swagger (Development): open the app on port `5050` under `/api`.
 | `Documentation/DAT.md` | Technical architecture (backend + frontend) |
 | `Documentation/AGENTS.md` | Conventions for AI / contributors |
 | `Documentation/HOW_TO_ADD_A_FEATURE.md` | Step-by-step feature guide |
-| `Documentation/commands.md` | Git, Docker, JWT secrets, dotnet, EF |
+| `Documentation/commands.md` | Git, Docker, JWT secrets, dotnet, EF, tests |
 | `Documentation/Dependencies.md` | Layer dependency diagram |
 | `Documentation/TO_LEARN.md` | Learning checklist |

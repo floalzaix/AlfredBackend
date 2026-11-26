@@ -34,6 +34,11 @@ revocation, Example demo route, Angular auth UI (login / register).
 - Each layer declares its own DI registrations
 - Thin routes; business logic only in the BLL
 - **REST** resource naming for feature routes
+- **DTO validation**: DataAnnotations on request DTOs with French
+  `ErrorMessage` (`AddValidation()` in `Program.cs`)
+- **CancellationToken**: propagate request abort through
+  Route → Controller → Service → Repository → EF / HTTP (BCL type;
+  does not couple BLL/DAL to ASP.NET)
 - **Centralized error handling**: expected failures via `AppException`
   subtypes; unexpected failures → 500 ProblemDetails
 - Frontend: feature folders + thin routable pages; HTTP via a shared
@@ -60,6 +65,7 @@ Backend.Models  Domain models + Exceptions
 | Backend.BLL | Business logic | Interfaces, Services, BLL DI |
 | Backend.DAL | Persistence | Repositories, `AppDbContext`, migrations, `DALConfig`, DAL DI |
 | Backend.Models | Shared models | POCOs without logic, `Exceptions/` |
+| Backend.Tests | Automated tests | xUnit + Moq; unit (services) + integration (`WebApplicationFactory`) |
 
 **Dependency rules**
 
@@ -72,10 +78,17 @@ Backend.Models  Domain models + Exceptions
 
 DI is **chained**: `Program.cs` → `AddAPI()` → `AddBLL()` → `AddDAL()`.
 
-**Request flow**: Route (binding) → Controller (DTO → service call) →
-Service (business rules; may throw `AppException`) → Repository
-(DB access) → Model. Uncaught exceptions → `GlobalExceptionHandler`
-→ ProblemDetails.
+**Request flow**: Route (binding + validated DTO + `CancellationToken`)
+→ Controller (DTO → service call, forward token) → Service (business
+rules; may throw `AppException`; forward token) → Repository (DB access
+with token on EF async APIs) → Model. Uncaught exceptions →
+`GlobalExceptionHandler` → ProblemDetails.
+
+**Input validation:** request DTOs in `Backend.API/DTOs` must use
+DataAnnotations (`[Required]`, `[MinLength]`, `[EmailAddress]`, …)
+with French `ErrorMessage`. Do not leave DTOs unannotated. Invalid
+input → 400 (`.ProducesValidationProblem()`). Business/DB rules stay
+in the BLL as `AppException`.
 
 **Error handling**
 
@@ -95,6 +108,11 @@ business cases. Details: `AGENTS.md` (Error handling) and
 messages/titles, and the generic 500 ProblemDetails text shown to
 clients are in **French** (frontend display). Code, comments, docs,
 and commit messages stay in **English**.
+
+**Careful with `AppException` text:** unlike a real 500 (generic client
+message + server-side log), `AppException` detail/title is often
+**displayed to the user**. Keep those strings clear, polite, French,
+and free of internal/debug information.
 
 ## 5. Backend technical stack
 
@@ -120,7 +138,7 @@ and commit messages stay in **English**.
 | --- | --- |
 | `Backend.DAL/DependencyInjection.cs` | `DALConfig`, `AppDbContext`, repositories |
 | `Backend.BLL/DependencyInjection.cs` | Services (`I*Service` → `*Service`) |
-| `Backend.API/DependencyInjection.cs` | Controllers, exception handler, `TokenCleanupBackgroundService` |
+| `Backend.API/DependencyInjection.cs` | `AppConfig`, controllers, exception handler, `TokenCleanupBackgroundService` |
 
 ### Adding configuration for a project
 
@@ -147,7 +165,14 @@ Reference: `Backend.DAL/DALConfig.cs`.
 - Without that registration, EF will not create/update a table for the model
 - EF Core migrations live in `Backend.DAL/Migrations` and are applied from
   `Backend.API` as startup project
-- Connection strings live under `DALConfig` (no secrets hardcoded in code)
+- Connection string lives under `DALConfig:ConnectionString` as the
+  **full** Npgsql string (password included). Cloud: dedicated DB user,
+  `Ssl Mode=Require`, `Trust Server Certificate=false`
+- **Dev**: full string in `appsettings.Development.json` (Docker
+  password tracked on purpose)
+- **Prod secrets**: `DALConfig__ConnectionString` + `JwtConfig__Key`
+  (never commit). Plain config: environment, HTTPS redirect, CORS —
+  see `commands.md`. `ASPNETCORE_ENVIRONMENT` must be `Production`
 - **Dev database**: `Backend.DAL/Dockerfile` (PostgreSQL, port `4040`,
   database `alfred_db`). Commands in `commands.md` / `README.md`.
   Dev-only credentials; do not use that image in production.
@@ -164,13 +189,13 @@ create/delete/check tokens, cleanup expired tokens).
 
 | File | Connection string purpose |
 | --- | --- |
-| `appsettings.json` | Default / shared fallback |
-| `appsettings.Development.json` | Local PostgreSQL via Docker (dev) |
-| `appsettings.Production.json` | Fake production example |
+| `appsettings.json` | No prod connection string (secret only) |
+| `appsettings.Development.json` | Full local Docker string (incl. password) |
+| `appsettings.Production.json` | Cloud host defaults (HTTPS redirect off, empty CORS) |
 
 ```json
 "DALConfig": {
-  "ConnectionString": "Host=…;Port=4040;Database=…;Username=…;Password=…"
+  "ConnectionString": "Host=…;Port=5432;Database=…;Username=…;Password=…;Ssl Mode=Require;Trust Server Certificate=false"
 }
 ```
 
@@ -184,10 +209,15 @@ create/delete/check tokens, cleanup expired tokens).
   + HTTP methods for actions (`GET /devices`, `POST /devices`, …)
   Avoid verb paths (`/getDevices`). Nested resources are fine when ownership
   is clear (`/homes/{id}/rooms`)
-- Request DTOs are dedicated and `sealed`; GET DTOs use `[AsParameters]`
+- Request DTOs are dedicated and `sealed`, with **DataAnnotations** and
+  French `ErrorMessage` on every constrained field; GET DTOs use
+  `[AsParameters]`
+- Async handlers bind `CancellationToken` and forward it through
+  controller → service → repository → EF
 - Document expected statuses with `.Produces` / `.ProducesValidationProblem`
   / `.ProducesProblem` for Swagger
 - Reference demo feature: `Example` (path `/example/hello_world` is not REST)
+- Reference validated DTOs: `AuthDTOs.cs`, `ExampleDTOs.cs`
 
 | Method | Route (after `/api`) | Auth | Description |
 | --- | --- | --- | --- |
@@ -258,7 +288,7 @@ env for `Key`):
 | --- | --- |
 | `Issuer` | Token issuer (`alfred_backend`) |
 | `Audience` | Token audience (`alfred_backend`) |
-| `Key` | Base64 signing key (secrets / env — not in repo) |
+| `Key` | Base64 signing key ≥ 32 bytes (secrets / `JwtConfig__Key`; prod ≠ local) |
 | `ExpirationTime` | Validity in minutes |
 
 Swagger (dev): use the `bearer` security scheme and paste the JWT
@@ -276,11 +306,20 @@ Policy name: **`Frontend`**. Origins come from configuration:
 }
 ```
 
-- Development: `http://localhost:8080` (Angular `ng serve` port)
-- Production placeholder may include `https://<nom hote>`
+- Development: `http://localhost:8080` (Angular `ng serve` port;
+  change if the SPA uses another port, e.g. Vite `5173`)
+- Production: exact origins via `Cors__AllowedOrigins__0` (no wildcards)
 - Pipeline: `UseCors("Frontend")` before auth middleware
 - Allows any header and any method for listed origins
 - The SPA calls the API **cross-origin** (no frontend proxy)
+
+### App host (`AppConfig`)
+
+| Setting | Purpose |
+| --- | --- |
+| `UseHttpsRedirection` | When `true`, calls `UseHttpsRedirection()`. `false` on App Service (HTTPS Only / TLS at proxy) |
+
+Cloud env checklist (DB, JWT, CORS, environment): see `commands.md`.
 
 | Topic | State |
 | --- | --- |
@@ -289,12 +328,13 @@ Policy name: **`Frontend`**. Origins come from configuration:
 | Current user (`GET /auth/me`) | Implemented |
 | Logout / JWT revocation (`jti` + `UserToken`) | Implemented |
 | Expired-token cleanup daemon | Implemented (`TokenCleanupBackgroundService`) |
-| CORS for frontend | Implemented (`Cors:AllowedOrigins`) |
+| CORS for frontend | Implemented (`Cors:AllowedOrigins` / env `__0`) |
 | Global error handling | Implemented (`AppException` + `GlobalExceptionHandler` + ProblemDetails) |
-| HTTPS | Redirection enabled |
+| HTTPS | Configurable via `AppConfig:UseHttpsRedirection` |
 | Secrets | Keep real passwords and JWT key out of the repo; use secrets / env vars |
 | `AllowedHosts` | `*` (restrict in production) |
-| Input validation | DataAnnotations on DTOs; `AddValidation()` in `Program.cs` |
+| Input validation | DataAnnotations on DTOs (French `ErrorMessage`); `AddValidation()` in `Program.cs` |
+| Request cancellation | `CancellationToken` propagated to services/repos/EF |
 
 ## 10. Frontend technical architecture
 
@@ -407,10 +447,18 @@ API/app containerization, CI/CD, and hosting strategy not defined yet.
 - `I` prefix for interfaces, `Async` suffix for async methods,
   `Is`/`Has`/`Can` for booleans
 - Primary constructors preferred
+- Request DTOs: DataAnnotations + French `ErrorMessage` (mandatory)
+- Async I/O: propagate `CancellationToken` (route → … → repository/EF)
+- Comment non-obvious features/methods (English, `Example*` file-header style)
+- Repository queries: EF Core fluent chains (`Where` / `OrderBy` /
+  `Select` / `To*Async`), not raw SQL or LINQ query syntax
 - Project content (code, comments, docs, commits) in **English**
 - **Exception:** user-facing error / validation messages in **French**
 - Adding a feature: follow the `Example*` / `Auth*` template layer by layer
   (checklist in `AGENTS.md` and `HOW_TO_ADD_A_FEATURE.md`)
+- Closely related capabilities stay in the same feature file set
+  (e.g. home invitation codes → extend `Home*`, do not create
+  `Invitation*` everywhere)
 
 ## 13. Attention points
 
@@ -423,7 +471,8 @@ API/app containerization, CI/CD, and hosting strategy not defined yet.
 5. **Naming**: `ExempleUser` (typo) should align on `Example`.
 6. **Swagger and OpenAPI**: both `MapOpenApi()` and Swashbuckle are enabled;
    keep one if possible.
-7. **No automated tests** yet (backend or frontend).
+7. **Backend tests exist** (`Backend.Tests`); frontend automated
+   tests are still missing.
 8. **Frontend gaps**: no post-auth pages, logout UI, or `authGuard` on
    private routes yet.
 
